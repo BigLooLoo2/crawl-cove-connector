@@ -1,0 +1,36 @@
+<?php
+/**
+ * Plugin Name: Crawl Cove Connector
+ * Plugin URI:  https://crawlcove.com/wordpress-plugin
+ * Description: Receive approved title and meta description fixes from the Crawl Cove desktop crawler and apply them to Yoast SEO or Rank Math — with a full change log and one-click revert.
+ * Version:     0.1.0
+ * Requires at least: 6.2
+ * Requires PHP: 7.4
+ * Author:      Crawl Cove
+ * Author URI:  https://crawlcove.com
+ * License:     GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: crawl-cove-connector
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+define( 'CCC_VERSION', '0.1.0' );
+define( 'CCC_PLUGIN_FILE', __FILE__ );
+define( 'CCC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+require_once CCC_PLUGIN_DIR . 'includes/class-ccc-adapter.php';
+require_once CCC_PLUGIN_DIR . 'includes/class-ccc-change-log.php';
+require_once CCC_PLUGIN_DIR . 'includes/class-ccc-service.php';
+require_once CCC_PLUGIN_DIR . 'includes/class-ccc-rest.php';
+
+if ( is_admin() ) {
+	require_once CCC_PLUGIN_DIR . 'admin/class-ccc-admin.php';
+	add_action( 'plugins_loaded', array( 'CCC_Admin', 'init' ) );
+}
+
+add_action( 'rest_api_init', array( 'CCC_Rest', 'register_routes' ) );
+
+add_action( 'plugins_loaded', function () {
+	load_plugin_textdomain( 'crawl-cove-connector' );
+} );

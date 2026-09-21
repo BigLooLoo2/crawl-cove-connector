@@ -1,0 +1,159 @@
+<?php
+/**
+ * REST API: namespace crawlcove/v1.
+ *
+ * Authentication is WordPress core's own (Application Passwords over HTTPS is
+ * what the desktop app uses). Every route additionally requires edit_posts,
+ * and apply/revert re-check edit_post per post.
+ *
+ * @package crawl-cove-connector
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+class CCC_Rest {
+
+	const NS = 'crawlcove/v1';
+
+	public static function register_routes() {
+		register_rest_route( self::NS, '/status', array(
+			'methods'             => 'GET',
+			'callback'            => array( __CLASS__, 'status' ),
+			'permission_callback' => array( __CLASS__, 'can_use' ),
+		) );
+
+		register_rest_route( self::NS, '/resolve', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'resolve' ),
+			'permission_callback' => array( __CLASS__, 'can_use' ),
+			'args'                => array(
+				'urls' => array( 'required' => true, 'type' => 'array' ),
+			),
+		) );
+
+		register_rest_route( self::NS, '/apply', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'apply' ),
+			'permission_callback' => array( __CLASS__, 'can_use' ),
+			'args'                => array(
+				'changes' => array( 'required' => true, 'type' => 'array' ),
+				'dry_run' => array( 'type' => 'boolean', 'default' => false ),
+			),
+		) );
+
+		register_rest_route( self::NS, '/changes', array(
+			'methods'             => 'GET',
+			'callback'            => array( __CLASS__, 'changes' ),
+			'permission_callback' => array( __CLASS__, 'can_use' ),
+		) );
+
+		register_rest_route( self::NS, '/revert', array(
+			'methods'             => 'POST',
+			'callback'            => array( __CLASS__, 'revert' ),
+			'permission_callback' => array( __CLASS__, 'can_use' ),
+			'args'                => array(
+				'change_id' => array( 'required' => true, 'type' => 'integer' ),
+			),
+		) );
+	}
+
+	public static function can_use() {
+		return current_user_can( 'edit_posts' );
+	}
+
+	public static function status() {
+		$adapter = CCC_Adapter::detect();
+		return rest_ensure_response( array(
+			'plugin_version' => CCC_VERSION,
+			'wp_version'     => get_bloginfo( 'version' ),
+			'site_url'       => home_url(),
+			'seo_plugin'     => $adapter ? $adapter->id : 'none',
+			'seo_version'    => $adapter ? $adapter->plugin_version : '',
+			'can_apply'      => (bool) $adapter,
+		) );
+	}
+
+	public static function resolve( $request ) {
+		$adapter = self::require_adapter();
+		if ( is_wp_error( $adapter ) ) {
+			return $adapter;
+		}
+
+		$urls = $request->get_param( 'urls' );
+		if ( ! is_array( $urls ) || ! $urls ) {
+			return new WP_Error( 'ccc_bad_request', __( 'urls must be a non-empty array.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
+		}
+		if ( count( $urls ) > 100 ) {
+			return new WP_Error( 'ccc_batch_too_big', __( 'At most 100 urls per request.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
+		}
+
+		$out = array();
+		foreach ( $urls as $url ) {
+			$url     = is_string( $url ) ? esc_url_raw( $url ) : '';
+			$post_id = CCC_Service::resolve_url( $url );
+			if ( is_wp_error( $post_id ) ) {
+				$out[] = array(
+					'url'     => $url,
+					'ok'      => false,
+					'error'   => $post_id->get_error_code(),
+					'message' => $post_id->get_error_message(),
+				);
+				continue;
+			}
+			$out[] = array_merge(
+				array( 'url' => $url, 'ok' => true ),
+				CCC_Service::describe( $post_id, $adapter )
+			);
+		}
+		return rest_ensure_response( $out );
+	}
+
+	public static function apply( $request ) {
+		$adapter = self::require_adapter();
+		if ( is_wp_error( $adapter ) ) {
+			return $adapter;
+		}
+
+		$user    = wp_get_current_user();
+		$results = CCC_Service::apply(
+			$request->get_param( 'changes' ),
+			(bool) $request->get_param( 'dry_run' ),
+			$adapter,
+			$user ? $user->user_login : 'unknown'
+		);
+		return is_wp_error( $results ) ? $results : rest_ensure_response( $results );
+	}
+
+	public static function changes() {
+		return rest_ensure_response( CCC_Change_Log::all() );
+	}
+
+	public static function revert( $request ) {
+		$adapter = self::require_adapter();
+		if ( is_wp_error( $adapter ) ) {
+			return $adapter;
+		}
+
+		$change_id = (int) $request->get_param( 'change_id' );
+		$entry     = CCC_Change_Log::find( $change_id );
+		if ( $entry && ! current_user_can( 'edit_post', $entry['post_id'] ) ) {
+			return new WP_Error( 'ccc_forbidden', __( 'This user may not edit that post.', 'crawl-cove-connector' ), array( 'status' => 403 ) );
+		}
+
+		$done = CCC_Change_Log::revert( $change_id, $adapter );
+		return is_wp_error( $done ) ? $done : rest_ensure_response( array( 'ok' => true, 'change_id' => $change_id ) );
+	}
+
+	/** @return CCC_Adapter|WP_Error */
+	private static function require_adapter() {
+		$adapter = CCC_Adapter::detect();
+		if ( ! $adapter ) {
+			return new WP_Error(
+				'ccc_no_seo_plugin',
+				__( 'Neither Yoast SEO nor Rank Math is active — nothing to write to.', 'crawl-cove-connector' ),
+				array( 'status' => 409 )
+			);
+		}
+		return $adapter;
+	}
+}

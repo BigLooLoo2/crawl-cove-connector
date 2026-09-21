@@ -1,0 +1,63 @@
+<?php
+
+use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+
+class AdapterTest extends TestCase {
+
+	protected function setUp(): void {
+		cc_reset_wp();
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_detect_returns_null_without_seo_plugin() {
+		$this->assertNull( CCC_Adapter::detect() );
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_detect_yoast() {
+		define( 'WPSEO_VERSION', '23.9' );
+		$a = CCC_Adapter::detect();
+		$this->assertSame( 'yoast', $a->id );
+		$this->assertSame( '_yoast_wpseo_title', $a->title_key );
+		$this->assertSame( '_yoast_wpseo_metadesc', $a->description_key );
+		$this->assertSame( '23.9', $a->plugin_version );
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_detect_rankmath() {
+		define( 'RANK_MATH_VERSION', '1.0.230' );
+		$a = CCC_Adapter::detect();
+		$this->assertSame( 'rankmath', $a->id );
+		$this->assertSame( 'rank_math_title', $a->title_key );
+		$this->assertSame( 'rank_math_description', $a->description_key );
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_detect_prefers_yoast_when_both_present() {
+		define( 'WPSEO_VERSION', '23.9' );
+		define( 'RANK_MATH_VERSION', '1.0.230' );
+		$this->assertSame( 'yoast', CCC_Adapter::detect()->id );
+	}
+
+	public function test_set_and_get_roundtrip() {
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$a->set_title( 7, 'New title' );
+		$a->set_description( 7, 'New description' );
+		$this->assertSame( 'New title', $a->get_title( 7 ) );
+		$this->assertSame( 'New description', $a->get_description( 7 ) );
+	}
+
+	public function test_empty_value_deletes_the_override() {
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( 7, 'Something' );
+		$a->set_title( 7, '' );
+		$this->assertSame( '', $a->get_title( 7 ) );
+		$this->assertArrayNotHasKey( 'rank_math_title', $GLOBALS['cc_meta'][7] ?? array() );
+	}
+}

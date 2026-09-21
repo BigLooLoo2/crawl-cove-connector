@@ -1,0 +1,49 @@
+=== Crawl Cove Connector ===
+Contributors: crawlcove
+Tags: seo, meta description, title tag, yoast, rank math
+Requires at least: 6.2
+Tested up to: 6.8
+Requires PHP: 7.4
+Stable tag: 0.1.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Apply reviewed title and meta description fixes from the Crawl Cove desktop crawler to Yoast SEO or Rank Math — with a change log and one-click revert.
+
+== Description ==
+
+Crawl Cove Connector closes the loop between an SEO crawl and your CMS. Instead of exporting a spreadsheet of title and meta description problems and fixing each post by hand, the [Crawl Cove](https://crawlcove.com) desktop crawler sends the fixes you approved straight to your site, and this plugin applies them to whichever SEO plugin you already use.
+
+* Works with **Yoast SEO** and **Rank Math** (writes their native fields — nothing is duplicated or overridden at render time).
+* **You stay in control**: nothing is applied unless you approved it in the crawler, every change is logged with its previous value, and any change can be reverted with one click from Tools → Crawl Cove (or from the app).
+* **Dry-run mode** shows exactly what would change before anything is written.
+* Uses WordPress core **Application Passwords** for authentication — no extra accounts, no API keys stored by the plugin, revoke access any time from your profile.
+* Per-post capability checks: a connected user can only change posts they are allowed to edit.
+
+The plugin is a small, auditable bridge (a few hundred lines, no external requests, no tracking, GPL). It exposes five REST routes under `crawlcove/v1`: status, resolve, apply, changes, revert.
+
+== Installation ==
+
+1. Install and activate the plugin.
+2. Create an Application Password: Users → Profile → Application Passwords → "Crawl Cove".
+3. In the Crawl Cove desktop app, open your site profile → WordPress and enter the site URL, username and application password.
+4. Crawl, review the suggested fixes, push the approved ones. Review or revert them any time under Tools → Crawl Cove.
+
+== Frequently Asked Questions ==
+
+= Does it work without Yoast or Rank Math? =
+
+Not yet. The plugin writes the SEO title and meta description fields those plugins own. Support for further SEO plugins is planned; the /status endpoint reports what was detected.
+
+= Can it change my content? =
+
+No. It writes only the SEO title and meta description fields, only for changes you approved, and each touched post is re-saved so your SEO plugin picks the new values up immediately.
+
+= Is this safe on a live site? =
+
+Every write is capability-checked, validated, length-capped and logged with its previous value; reverting is one click. Authentication is core WordPress Application Passwords over HTTPS.
+
+== Changelog ==
+
+= 0.1.0 =
+* First release: Yoast SEO and Rank Math adapters, REST API (status/resolve/apply/changes/revert), dry-run, change log with revert, admin page under Tools.

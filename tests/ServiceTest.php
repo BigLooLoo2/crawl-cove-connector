@@ -1,0 +1,158 @@
+<?php
+
+use PHPUnit\Framework\TestCase;
+
+class ServiceTest extends TestCase {
+
+	private CCC_Adapter $adapter;
+
+	protected function setUp(): void {
+		cc_reset_wp();
+		$this->adapter = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		cc_add_post( 7, 'https://example.com/hello', 'Hello' );
+		cc_add_post( 8, 'https://example.com/world', 'World' );
+	}
+
+	// ── resolve_url ────────────────────────────────────────────────
+
+	public function test_resolve_rejects_empty_and_foreign_urls() {
+		$this->assertSame( 'ccc_bad_url', CCC_Service::resolve_url( '' )->get_error_code() );
+		$this->assertSame( 'ccc_wrong_site', CCC_Service::resolve_url( 'https://other-site.com/hello' )->get_error_code() );
+	}
+
+	public function test_resolve_maps_url_to_post_id() {
+		$this->assertSame( 7, CCC_Service::resolve_url( 'https://example.com/hello' ) );
+	}
+
+	public function test_resolve_host_check_is_case_insensitive() {
+		// Uppercase host must pass the same-site check (the stub's
+		// url_to_postid is exact-match, so it then reports unresolvable —
+		// the point is it is NOT ccc_wrong_site).
+		$err = CCC_Service::resolve_url( 'https://EXAMPLE.com/hello' );
+		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
+	}
+
+	public function test_resolve_unresolvable_url_404s() {
+		$err = CCC_Service::resolve_url( 'https://example.com/category/stuff/' );
+		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
+	}
+
+	// ── validate_change ────────────────────────────────────────────
+
+	public function test_validate_needs_a_target_and_a_field() {
+		$this->assertSame( 'ccc_no_target', CCC_Service::validate_change( array( 'title' => 'X' ) )->get_error_code() );
+		$this->assertSame( 'ccc_nothing_to_do', CCC_Service::validate_change( array( 'post_id' => 7 ) )->get_error_code() );
+		$this->assertSame( 'ccc_no_post', CCC_Service::validate_change( array( 'post_id' => 999, 'title' => 'X' ) )->get_error_code() );
+		$this->assertSame( 'ccc_bad_change', CCC_Service::validate_change( 'not-an-object' )->get_error_code() );
+	}
+
+	public function test_validate_rejects_non_string_and_overlong_values() {
+		$this->assertSame( 'ccc_bad_value', CCC_Service::validate_change( array( 'post_id' => 7, 'title' => array( 'x' ) ) )->get_error_code() );
+		$long = str_repeat( 'a', CCC_Service::MAX_TITLE_LEN + 1 );
+		$this->assertSame( 'ccc_too_long', CCC_Service::validate_change( array( 'post_id' => 7, 'title' => $long ) )->get_error_code() );
+	}
+
+	public function test_validate_sanitizes_values() {
+		$valid = CCC_Service::validate_change( array( 'post_id' => 7, 'title' => "  New <b>title</b>\nline  " ) );
+		$this->assertSame( 'New title line', $valid['fields']['title'] );
+	}
+
+	public function test_validate_resolves_url_targets() {
+		$valid = CCC_Service::validate_change( array( 'url' => 'https://example.com/world', 'description' => 'D' ) );
+		$this->assertSame( 8, $valid['post_id'] );
+	}
+
+	// ── apply ──────────────────────────────────────────────────────
+
+	public function test_apply_rejects_empty_and_oversized_batches() {
+		$this->assertSame( 'ccc_empty_batch', CCC_Service::apply( array(), false, $this->adapter, 'u' )->get_error_code() );
+		$batch = array_fill( 0, CCC_Service::MAX_BATCH + 1, array( 'post_id' => 7, 'title' => 'X' ) );
+		$this->assertSame( 'ccc_batch_too_big', CCC_Service::apply( $batch, false, $this->adapter, 'u' )->get_error_code() );
+	}
+
+	public function test_dry_run_diffs_without_writing() {
+		$this->adapter->set_title( 7, 'Old title' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 7, 'title' => 'New title', 'description' => 'New desc' ) ),
+			true, $this->adapter, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertTrue( $res[0]['applied']['title']['changed'] );
+		$this->assertSame( 'Old title', $res[0]['applied']['title']['from'] );
+		$this->assertSame( 'Old title', $this->adapter->get_title( 7 ) );
+		$this->assertSame( array(), CCC_Change_Log::all() );
+		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+	}
+
+	public function test_apply_writes_logs_and_resaves_posts() {
+		$this->adapter->set_title( 7, 'Old title' );
+		$res = CCC_Service::apply(
+			array( array( 'url' => 'https://example.com/hello', 'title' => 'New title', 'description' => 'New desc' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertSame( 'New title', $this->adapter->get_title( 7 ) );
+		$this->assertSame( 'New desc', $this->adapter->get_description( 7 ) );
+		$this->assertArrayHasKey( 'change_id', $res[0]['applied']['title'] );
+		$this->assertCount( 2, CCC_Change_Log::all() );
+		$this->assertSame( array( 7 ), $GLOBALS['cc_saved'] );
+
+		$log = CCC_Change_Log::all();
+		$this->assertSame( 'bloo', $log[0]['source'] );
+	}
+
+	public function test_apply_skips_unchanged_values() {
+		$this->adapter->set_title( 7, 'Same' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 7, 'title' => 'Same' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertFalse( $res[0]['applied']['title']['changed'] );
+		$this->assertArrayNotHasKey( 'change_id', $res[0]['applied']['title'] );
+		$this->assertSame( array(), CCC_Change_Log::all() );
+		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+	}
+
+	public function test_apply_enforces_per_post_capability() {
+		$GLOBALS['cc_deny'] = array( 7 );
+		$res = CCC_Service::apply(
+			array(
+				array( 'post_id' => 7, 'title' => 'Blocked' ),
+				array( 'post_id' => 8, 'title' => 'Allowed' ),
+			),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_forbidden', $res[0]['error'] );
+		$this->assertSame( '', $this->adapter->get_title( 7 ) );
+		$this->assertTrue( $res[1]['ok'] );
+		$this->assertSame( 'Allowed', $this->adapter->get_title( 8 ) );
+	}
+
+	public function test_one_bad_item_does_not_block_the_rest() {
+		$res = CCC_Service::apply(
+			array(
+				array( 'url' => 'https://elsewhere.com/x', 'title' => 'X' ),
+				array( 'post_id' => 8, 'title' => 'Good' ),
+			),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_wrong_site', $res[0]['error'] );
+		$this->assertTrue( $res[1]['ok'] );
+		$this->assertSame( 'Good', $this->adapter->get_title( 8 ) );
+	}
+
+	public function test_empty_string_removes_override_and_is_revertable() {
+		$this->adapter->set_description( 7, 'Bad copy' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 7, 'description' => '' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertSame( '', $this->adapter->get_description( 7 ) );
+
+		CCC_Change_Log::revert( $res[0]['applied']['description']['change_id'], $this->adapter );
+		$this->assertSame( 'Bad copy', $this->adapter->get_description( 7 ) );
+	}
+}

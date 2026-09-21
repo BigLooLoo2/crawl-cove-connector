@@ -1,0 +1,16 @@
+{
+    "name": "crawlcove/crawl-cove-connector",
+    "description": "WordPress companion plugin for the Crawl Cove desktop SEO crawler.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "scripts": {
+        "test": "phpunit --colors=always",
+        "lint": "find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l"
+    }
+}
