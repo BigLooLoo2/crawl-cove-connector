@@ -1,20 +1,20 @@
 === Crawl Cove Connector ===
 Contributors: crawlcove
-Tags: seo, yoast, rank math, seopress, meta description
+Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Push approved title and meta description fixes from Crawl Cove into Yoast SEO, Rank Math or SEOPress — with a change log and one-click revert.
+Push approved title/description fixes from Crawl Cove into Yoast, Rank Math, SEOPress or AIOSEO — with a change log and one-click revert.
 
 == Description ==
 
 Crawl Cove Connector closes the loop between an SEO crawl and your CMS. Instead of exporting a spreadsheet of title and meta description problems and fixing each post by hand, the [Crawl Cove](https://crawlcove.com) desktop crawler sends the fixes you approved straight to your site, and this plugin applies them to whichever SEO plugin you already use.
 
-* Works with **Yoast SEO**, **Rank Math** and **SEOPress** (writes their native fields — nothing is duplicated or overridden at render time).
+* Works with **Yoast SEO**, **Rank Math**, **SEOPress** and **AIOSEO** (writes their native fields — nothing is duplicated or overridden at render time).
 * **You stay in control**: nothing is applied unless you approved it in the crawler, every change is logged with its previous value, and any change can be reverted with one click from Tools → Crawl Cove (or from the app).
 * **Dry-run mode** shows exactly what would change before anything is written.
 * Uses WordPress core **Application Passwords** for authentication — no extra accounts, no API keys stored by the plugin, revoke access any time from your profile.
@@ -31,7 +31,7 @@ The plugin is a small, auditable bridge (a few hundred lines, no external reques
 
 == Frequently Asked Questions ==
 
-= Does it work without Yoast, Rank Math or SEOPress? =
+= Does it work without Yoast, Rank Math, SEOPress or AIOSEO? =
 
 Not yet. The plugin writes the SEO title and meta description fields those plugins own. Support for further SEO plugins is planned; the /status endpoint reports what was detected.
 
@@ -48,6 +48,9 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.3.0 =
+* AIOSEO adapter: title/description live in a custom DB table for this plugin (not postmeta like the other three), written through AIOSEO's own `Post::savePost()` model method — verified against AIOSEO 4.9 source that this only touches the columns given, and confirmed against a real install that it doesn't reset a post's other AIOSEO settings (social titles, etc).
 
 = 0.2.0 =
 * SEOPress adapter: writes `_seopress_titles_title` / `_seopress_titles_desc`, the same postmeta SEOPress's own admin metabox saves to and deletes on empty (verified against SEOPress 10.2 source).

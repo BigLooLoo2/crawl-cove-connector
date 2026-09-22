@@ -15,6 +15,7 @@ function cc_reset_wp() {
 	$GLOBALS['cc_deny']    = array(); // post_ids current user may NOT edit
 	$GLOBALS['cc_saved']   = array(); // wp_update_post calls
 	$GLOBALS['cc_home']    = 'https://example.com';
+	$GLOBALS['cc_aioseo']  = array(); // post_id => ['title' => ..., 'description' => ...]
 }
 cc_reset_wp();
 
@@ -95,6 +96,42 @@ function cc_add_post( $post_id, $url, $title = 'A post' ) {
 	$GLOBALS['cc_posts'][ $post_id ] = array( 'title' => $title, 'url' => $url );
 	$GLOBALS['cc_urls'][ $url ]      = $post_id;
 }
+
+/**
+ * Minimal stand-in for AIOSEO's own \AIOSEO\Plugin\Common\Models\Post,
+ * shaped like the real getPost()/savePost() (patch-style: savePost() only
+ * overwrites keys present in $data) so CCC_Adapter's aioseo branch is
+ * unit-testable without the real plugin installed. Real-plugin behaviour
+ * (defaults on first save, the 38 other columns, empty-string-falls-back-
+ * to-template rendering) is proven in tests/integration/, not here.
+ */
+class CC_Test_Aioseo_Post {
+	public $post_id;
+	public $title       = '';
+	public $description = '';
+
+	public static function getPost( $post_id ) {
+		$post              = new self();
+		$post->post_id     = $post_id;
+		$row               = isset( $GLOBALS['cc_aioseo'][ $post_id ] ) ? $GLOBALS['cc_aioseo'][ $post_id ] : array();
+		$post->title       = isset( $row['title'] ) ? $row['title'] : '';
+		$post->description = isset( $row['description'] ) ? $row['description'] : '';
+		return $post;
+	}
+
+	public static function savePost( $post_id, $data ) {
+		if ( ! isset( $GLOBALS['cc_aioseo'][ $post_id ] ) ) {
+			$GLOBALS['cc_aioseo'][ $post_id ] = array(
+				'title'       => '',
+				'description' => '',
+			);
+		}
+		foreach ( $data as $key => $value ) {
+			$GLOBALS['cc_aioseo'][ $post_id ][ $key ] = $value;
+		}
+	}
+}
+class_alias( 'CC_Test_Aioseo_Post', 'AIOSEO\\Plugin\\Common\\Models\\Post' );
 
 require __DIR__ . '/../includes/class-ccc-adapter.php';
 require __DIR__ . '/../includes/class-ccc-change-log.php';

@@ -2,14 +2,14 @@
 #
 # Real-WordPress integration smoke for crawl-cove-connector: builds a throwaway
 # WP install backed by the SQLite drop-in (no MySQL needed on this box),
-# installs the real Rank Math, Yoast SEO or SEOPress plugin, symlinks in this
-# repo's plugin code, and exercises all five REST routes end to end (auth,
-# capability checks, validation, dry-run, apply, revert) against a live
-# php -S server. Unit stubs can't see this: url_to_postid()'s "?p=N with no
-# such post" quirk and Yoast's indexable auto-rebuild were both proven/caught
-# here, not in tests/*Test.php.
+# installs the real Rank Math, Yoast SEO, SEOPress or AIOSEO plugin, symlinks
+# in this repo's plugin code, and exercises all five REST routes end to end
+# (auth, capability checks, validation, dry-run, apply, revert) against a
+# live php -S server. Unit stubs can't see this: url_to_postid()'s "?p=N with
+# no such post" quirk and Yoast's indexable auto-rebuild were both
+# proven/caught here, not in tests/*Test.php.
 #
-# Usage: tests/integration/run.sh [--adapter=rankmath|yoast|seopress]
+# Usage: tests/integration/run.sh [--adapter=rankmath|yoast|seopress|aioseo]
 #
 # Downloads are cached under tests/integration/.cache/ (gitignored) so repeat
 # runs don't hit wordpress.org again. The site itself is rebuilt from scratch
@@ -24,8 +24,8 @@ for arg in "$@"; do
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
-if [[ "$ADAPTER" != "rankmath" && "$ADAPTER" != "yoast" && "$ADAPTER" != "seopress" ]]; then
-  echo "adapter must be rankmath, yoast or seopress, got: $ADAPTER" >&2
+if [[ "$ADAPTER" != "rankmath" && "$ADAPTER" != "yoast" && "$ADAPTER" != "seopress" && "$ADAPTER" != "aioseo" ]]; then
+  echo "adapter must be rankmath, yoast, seopress or aioseo, got: $ADAPTER" >&2
   exit 2
 fi
 
@@ -48,7 +48,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for f in wordpress.zip sqlite.zip rankmath.zip yoast.zip seopress.zip wp-cli.phar; do
+for f in wordpress.zip sqlite.zip rankmath.zip yoast.zip seopress.zip aioseo.zip wp-cli.phar; do
   if [[ ! -f "$CACHE/$f" ]]; then
     echo "missing $CACHE/$f — see NEXT.md for the download commands" >&2
     exit 1
@@ -67,6 +67,7 @@ unzip -q "$CACHE/sqlite.zip" -d "$SITE/wp-content/plugins"
 unzip -q "$CACHE/rankmath.zip" -d "$SITE/wp-content/plugins"
 unzip -q "$CACHE/yoast.zip" -d "$SITE/wp-content/plugins"
 unzip -q "$CACHE/seopress.zip" -d "$SITE/wp-content/plugins"
+unzip -q "$CACHE/aioseo.zip" -d "$SITE/wp-content/plugins"
 cp "$SITE/wp-content/plugins/sqlite-database-integration/db.copy" "$SITE/wp-content/db.php"
 ln -s "$PLUGIN_ROOT" "$SITE/wp-content/plugins/crawl-cove-connector"
 
@@ -89,6 +90,7 @@ case "$ADAPTER" in
   rankmath) SEO_PLUGIN="seo-by-rank-math" ;;
   yoast)    SEO_PLUGIN="wordpress-seo" ;;
   seopress) SEO_PLUGIN="wp-seopress" ;;
+  aioseo)   SEO_PLUGIN="all-in-one-seo-pack" ;;
 esac
 "${WPCLI[@]}" plugin activate sqlite-database-integration crawl-cove-connector "$SEO_PLUGIN" --path="$SITE" --quiet
 
@@ -143,6 +145,8 @@ export CCC_POST_EDITOR="$POST_EDITOR"
 export CCC_POST_AUTHOR="$POST_AUTHOR"
 export CCC_POST_HOME="$POST_HOME"
 export CCC_ADAPTER="$ADAPTER"
+export CCC_SITE="$SITE"
+export CCC_CACHE="$CACHE"
 
 log "running REST route checks (adapter=$ADAPTER)"
 bash "$HERE/checks.sh"
@@ -152,8 +156,15 @@ log "running security pass (auth sweep, capability matrix, fuzzing)"
 bash "$HERE/security-checks.sh"
 SECURITY_STATUS=$?
 
+AIOSEO_STATUS=0
+if [[ "$ADAPTER" == "aioseo" ]]; then
+  log "running AIOSEO corruption regression check (patch-safety of Post::savePost)"
+  bash "$HERE/aioseo-checks.sh"
+  AIOSEO_STATUS=$?
+fi
+
 STATUS=0
-[[ $CHECKS_STATUS -ne 0 || $SECURITY_STATUS -ne 0 ]] && STATUS=1
+[[ $CHECKS_STATUS -ne 0 || $SECURITY_STATUS -ne 0 || $AIOSEO_STATUS -ne 0 ]] && STATUS=1
 
 if [[ $STATUS -eq 0 ]]; then
   log "ALL CHECKS PASSED (route checks + security pass)"

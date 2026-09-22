@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 — 2026-09-22
+
+- AIOSEO adapter. Structurally different from the other three: AIOSEO 4.x
+  stores title/description in a custom `wp_aioseo_posts` table (40+
+  columns, several JSON-encoded), not postmeta. Verified against real
+  AIOSEO 4.9 source before writing anything: the REST-controller wrapper
+  (`PostSeoService`) is explicitly `@internal Not a public extension
+  surface`, but `\AIOSEO\Plugin\Common\Models\Post::savePost()` (their own
+  internal callers' write path, `@since 4.0.3`, not `@internal`) is
+  patch-style — it only touches the keys you pass, filling in every other
+  column's default when the row doesn't exist yet. Confirmed empty-string
+  correctly falls back to AIOSEO's default title template (their renderer
+  uses PHP's `empty()`, true for both `''` and `null`). Added a permanent
+  integration-harness regression check
+  (`tests/integration/aioseo-checks.sh`) that seeds a post with unrelated
+  AIOSEO fields (social titles) via AIOSEO's own API, applies a title/
+  description change through CCC's real REST route, and asserts the
+  unrelated fields survive untouched — this is the one claim from reading
+  the source that needed proving against a real write, not just reading.
+- `tests/integration/run.sh` now builds an AIOSEO site too
+  (`--adapter=aioseo`); 68/68 checks green (26 route + 42 security), no
+  regressions on rankmath/yoast/seopress.
+
 ## 0.2.0 — 2026-09-22
 
 - SEOPress adapter (`_seopress_titles_title` / `_seopress_titles_desc`),

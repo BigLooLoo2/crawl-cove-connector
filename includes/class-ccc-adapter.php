@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 class CCC_Adapter {
 
 	/**
-	 * 'yoast', 'rankmath' or 'seopress'.
+	 * 'yoast', 'rankmath', 'seopress' or 'aioseo'.
 	 *
 	 * @var string
 	 */
@@ -22,6 +22,8 @@ class CCC_Adapter {
 
 	/**
 	 * Post meta key the active SEO plugin stores its title override under.
+	 * For 'aioseo' this is a legacy compatibility mirror, not the
+	 * authoritative value — see get_title()/set_title().
 	 *
 	 * @var string
 	 */
@@ -29,6 +31,8 @@ class CCC_Adapter {
 
 	/**
 	 * Post meta key the active SEO plugin stores its meta description under.
+	 * For 'aioseo' this is a legacy compatibility mirror, not the
+	 * authoritative value — see get_description()/set_description().
 	 *
 	 * @var string
 	 */
@@ -44,7 +48,7 @@ class CCC_Adapter {
 	/**
 	 * Build an adapter for one detected SEO plugin.
 	 *
-	 * @param string $id               'yoast', 'rankmath' or 'seopress'.
+	 * @param string $id               'yoast', 'rankmath', 'seopress' or 'aioseo'.
 	 * @param string $title_key        Post meta key for the title override.
 	 * @param string $description_key  Post meta key for the meta description.
 	 * @param string $plugin_version   Detected SEO plugin version, '' if unknown.
@@ -58,8 +62,8 @@ class CCC_Adapter {
 
 	/**
 	 * Detect the active SEO plugin. Yoast wins over Rank Math, which wins
-	 * over SEOPress, if more than one is somehow active — matching the
-	 * order the crawler reports.
+	 * over SEOPress, which wins over AIOSEO, if more than one is somehow
+	 * active — matching the order the crawler reports.
 	 *
 	 * @return CCC_Adapter|null Null when no supported SEO plugin is active.
 	 */
@@ -74,6 +78,9 @@ class CCC_Adapter {
 		if ( defined( 'SEOPRESS_VERSION' ) ) {
 			return new self( 'seopress', '_seopress_titles_title', '_seopress_titles_desc', SEOPRESS_VERSION );
 		}
+		if ( function_exists( 'aioseo' ) && defined( 'AIOSEO_VERSION' ) ) {
+			return new self( 'aioseo', '_aioseo_title', '_aioseo_description', AIOSEO_VERSION );
+		}
 		return null;
 	}
 
@@ -87,6 +94,7 @@ class CCC_Adapter {
 			'yoast'    => 'Yoast SEO',
 			'rankmath' => 'Rank Math',
 			'seopress' => 'SEOPress',
+			'aioseo'   => 'All in One SEO',
 		);
 		return isset( $labels[ $this->id ] ) ? $labels[ $this->id ] : $this->id;
 	}
@@ -98,6 +106,9 @@ class CCC_Adapter {
 	 * @return string
 	 */
 	public function get_title( $post_id ) {
+		if ( 'aioseo' === $this->id ) {
+			return (string) $this->aioseo_post( $post_id )->title;
+		}
 		return (string) get_post_meta( $post_id, $this->title_key, true );
 	}
 
@@ -108,6 +119,9 @@ class CCC_Adapter {
 	 * @return string
 	 */
 	public function get_description( $post_id ) {
+		if ( 'aioseo' === $this->id ) {
+			return (string) $this->aioseo_post( $post_id )->description;
+		}
 		return (string) get_post_meta( $post_id, $this->description_key, true );
 	}
 
@@ -118,6 +132,10 @@ class CCC_Adapter {
 	 * @param string $value   New title override; '' removes it.
 	 */
 	public function set_title( $post_id, $value ) {
+		if ( 'aioseo' === $this->id ) {
+			$this->aioseo_save( $post_id, 'title', $value );
+			return;
+		}
 		$this->set_meta( $post_id, $this->title_key, $value );
 	}
 
@@ -128,6 +146,10 @@ class CCC_Adapter {
 	 * @param string $value   New meta description; '' removes it.
 	 */
 	public function set_description( $post_id, $value ) {
+		if ( 'aioseo' === $this->id ) {
+			$this->aioseo_save( $post_id, 'description', $value );
+			return;
+		}
 		$this->set_meta( $post_id, $this->description_key, $value );
 	}
 
@@ -146,5 +168,39 @@ class CCC_Adapter {
 		} else {
 			update_post_meta( $post_id, $key, $value );
 		}
+	}
+
+	/**
+	 * AIOSEO stores title/description in a custom `wp_aioseo_posts` table
+	 * (columns, not postmeta), via its own Model class rather than core WP
+	 * functions — confirmed against AIOSEO 4.9 source, `Models\Post` is a
+	 * public, patch-style API (`@since 4.0.3`, not `@internal` like the
+	 * REST-controller wrapper around it): `getPost()`/`savePost()` only
+	 * touch the columns you pass, filling in every other column's default
+	 * when the row doesn't exist yet, and leave everything else (noindex
+	 * flags, schema, keywords — 38+ other columns) untouched either way.
+	 *
+	 * @param int $post_id Post id.
+	 * @return \AIOSEO\Plugin\Common\Models\Post
+	 */
+	private function aioseo_post( $post_id ) {
+		return \AIOSEO\Plugin\Common\Models\Post::getPost( $post_id );
+	}
+
+	/**
+	 * Patch one AIOSEO field ('title' or 'description'). An empty string is
+	 * passed straight through, not specially handled: AIOSEO's own title/
+	 * description generator uses PHP's empty() on the stored value, which
+	 * is true for both '' and null, so an empty string already falls back
+	 * to the plugin's default template exactly like the postmeta adapters'
+	 * delete-on-empty behaviour (verified against `Meta\Title::getTitle()`
+	 * in AIOSEO 4.9 source).
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $field   'title' or 'description'.
+	 * @param string $value   New value.
+	 */
+	private function aioseo_save( $post_id, $field, $value ) {
+		\AIOSEO\Plugin\Common\Models\Post::savePost( $post_id, array( $field => $value ) );
 	}
 }
