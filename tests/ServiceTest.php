@@ -37,6 +37,16 @@ class ServiceTest extends TestCase {
 		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
 	}
 
+	public function test_resolve_rejects_a_url_to_id_match_with_no_such_post() {
+		// Real WordPress's url_to_postid() pattern-matches "?p=N" straight out
+		// of the query string and returns N even if no post N exists (confirmed
+		// against a live install) — simulate that split here: the URL "resolves"
+		// to an id that has no post record.
+		$GLOBALS['cc_urls']['https://example.com/?p=999'] = 999;
+		$err = CCC_Service::resolve_url( 'https://example.com/?p=999' );
+		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
+	}
+
 	// ── validate_change ────────────────────────────────────────────
 
 	public function test_validate_needs_a_target_and_a_field() {

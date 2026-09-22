@@ -36,7 +36,12 @@ class CCC_Service {
 		}
 
 		$post_id = url_to_postid( $url );
-		if ( ! $post_id ) {
+		// url_to_postid() pattern-matches "?p=N" / "?page_id=N" straight out of
+		// the query string without checking the post exists — confirmed against
+		// real WordPress (a plain-permalink URL for a deleted/never-existing id
+		// still returns that id). Verify it ourselves so a stale or guessed
+		// numeric URL reports unresolvable instead of a phantom "resolved" post.
+		if ( ! $post_id || ! get_post( $post_id ) ) {
 			return new WP_Error(
 				'ccc_unresolvable',
 				__( 'URL does not map to a post or page. Archives, taxonomy and virtual pages are not supported yet.', 'crawl-cove-connector' ),
