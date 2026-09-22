@@ -4,4 +4,6 @@ node_modules/
 *.zip
 tests/integration/.cache/
 tests/integration/.site/
+tests/integration/.site-check/
+tests/integration/.dist/
 tests/integration/.server.log
