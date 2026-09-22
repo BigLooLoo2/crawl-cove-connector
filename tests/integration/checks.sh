@@ -6,52 +6,8 @@
 # at least one assertion failed.
 
 set -uo pipefail
-
-: "${CCC_URL:?}" "${CCC_EDITOR_PW:?}" "${CCC_AUTHOR_PW:?}" "${CCC_SUBSCRIBER_PW:?}"
-: "${CCC_POST_EDITOR:?}" "${CCC_POST_AUTHOR:?}" "${CCC_ADAPTER:?}"
-
-BASE="$CCC_URL/index.php?rest_route=/crawlcove/v1"
-EDITOR="ccc_editor:$CCC_EDITOR_PW"
-AUTHOR="ccc_author:$CCC_AUTHOR_PW"
-SUBSCRIBER="ccc_subscriber:$CCC_SUBSCRIBER_PW"
-
-PASS=0
-FAIL=0
-
-# check <label> <expected_http> <actual_http> <jq_filter> <expected_value> <body>
-check() {
-  local label="$1" expect_http="$2" got_http="$3" jq_filter="$4" expect_val="$5" body="$6"
-  local got_val
-  got_val="$(echo "$body" | jq -rc "$jq_filter" 2>/dev/null)"
-  if [[ "$got_http" == "$expect_http" && "$got_val" == "$expect_val" ]]; then
-    PASS=$((PASS+1))
-    echo "  ok   $label"
-  else
-    FAIL=$((FAIL+1))
-    echo "  FAIL $label — want http=$expect_http $jq_filter=$expect_val, got http=$got_http $jq_filter=$got_val"
-    echo "       body: $body"
-  fi
-}
-
-req() { # req METHOD PATH AUTH JSON_BODY -> sets RESP_BODY RESP_HTTP
-  local method="$1" path="$2" auth="$3" data="${4:-}"
-  local out
-  if [[ -n "$auth" ]]; then
-    if [[ -n "$data" ]]; then
-      out="$(curl -s -u "$auth" -X "$method" "$BASE$path" -H 'Content-Type: application/json' -d "$data" -w '\n%{http_code}')"
-    else
-      out="$(curl -s -u "$auth" -X "$method" "$BASE$path" -w '\n%{http_code}')"
-    fi
-  else
-    if [[ -n "$data" ]]; then
-      out="$(curl -s -X "$method" "$BASE$path" -H 'Content-Type: application/json' -d "$data" -w '\n%{http_code}')"
-    else
-      out="$(curl -s -X "$method" "$BASE$path" -w '\n%{http_code}')"
-    fi
-  fi
-  RESP_HTTP="$(echo "$out" | tail -1)"
-  RESP_BODY="$(echo "$out" | sed '$d')"
-}
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HERE/lib.sh"
 
 echo "-- status --"
 req GET /status ""
@@ -127,6 +83,4 @@ check "revert: repeat is 409 already-reverted" 409 "$RESP_HTTP" '.code' 'ccc_alr
 req POST /revert "" "{\"change_id\":$CHANGE_ID_TITLE}"
 check "revert: unauthenticated is 401" 401 "$RESP_HTTP" '.code' 'rest_forbidden' "$RESP_BODY"
 
-echo
-echo "== $PASS passed, $FAIL failed =="
-[[ $FAIL -eq 0 ]]
+summary

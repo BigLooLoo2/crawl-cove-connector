@@ -129,10 +129,17 @@ export CCC_ADAPTER="$ADAPTER"
 
 log "running REST route checks (adapter=$ADAPTER)"
 bash "$HERE/checks.sh"
-STATUS=$?
+CHECKS_STATUS=$?
+
+log "running security pass (auth sweep, capability matrix, fuzzing)"
+bash "$HERE/security-checks.sh"
+SECURITY_STATUS=$?
+
+STATUS=0
+[[ $CHECKS_STATUS -ne 0 || $SECURITY_STATUS -ne 0 ]] && STATUS=1
 
 if [[ $STATUS -eq 0 ]]; then
-  log "ALL CHECKS PASSED"
+  log "ALL CHECKS PASSED (route checks + security pass)"
 else
   log "CHECKS FAILED — see output above; server log: $HERE/.server.log"
 fi
