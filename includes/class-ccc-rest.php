@@ -227,7 +227,7 @@ class CCC_Rest {
 	}
 
 	/**
-	 * The active SEO adapter, or a WP_Error if neither Yoast nor Rank Math is active.
+	 * The active SEO adapter, or a WP_Error if no supported SEO plugin is active.
 	 *
 	 * @return CCC_Adapter|WP_Error
 	 */
@@ -236,7 +236,7 @@ class CCC_Rest {
 		if ( ! $adapter ) {
 			return new WP_Error(
 				'ccc_no_seo_plugin',
-				__( 'Neither Yoast SEO nor Rank Math is active — nothing to write to.', 'crawl-cove-connector' ),
+				__( 'No supported SEO plugin is active (Yoast SEO, Rank Math or SEOPress) — nothing to write to.', 'crawl-cove-connector' ),
 				array( 'status' => 409 )
 			);
 		}

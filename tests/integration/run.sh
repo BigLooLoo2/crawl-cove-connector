@@ -2,14 +2,14 @@
 #
 # Real-WordPress integration smoke for crawl-cove-connector: builds a throwaway
 # WP install backed by the SQLite drop-in (no MySQL needed on this box),
-# installs the real Rank Math or Yoast SEO plugin, symlinks in this repo's
-# plugin code, and exercises all five REST routes end to end (auth, capability
-# checks, validation, dry-run, apply, revert) against a live php -S server.
-# Unit stubs can't see this: url_to_postid()'s "?p=N with no such post" quirk
-# and Yoast's indexable auto-rebuild were both proven/caught here, not in
-# tests/*Test.php.
+# installs the real Rank Math, Yoast SEO or SEOPress plugin, symlinks in this
+# repo's plugin code, and exercises all five REST routes end to end (auth,
+# capability checks, validation, dry-run, apply, revert) against a live
+# php -S server. Unit stubs can't see this: url_to_postid()'s "?p=N with no
+# such post" quirk and Yoast's indexable auto-rebuild were both proven/caught
+# here, not in tests/*Test.php.
 #
-# Usage: tests/integration/run.sh [--adapter=rankmath|yoast]
+# Usage: tests/integration/run.sh [--adapter=rankmath|yoast|seopress]
 #
 # Downloads are cached under tests/integration/.cache/ (gitignored) so repeat
 # runs don't hit wordpress.org again. The site itself is rebuilt from scratch
@@ -24,8 +24,8 @@ for arg in "$@"; do
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
-if [[ "$ADAPTER" != "rankmath" && "$ADAPTER" != "yoast" ]]; then
-  echo "adapter must be rankmath or yoast, got: $ADAPTER" >&2
+if [[ "$ADAPTER" != "rankmath" && "$ADAPTER" != "yoast" && "$ADAPTER" != "seopress" ]]; then
+  echo "adapter must be rankmath, yoast or seopress, got: $ADAPTER" >&2
   exit 2
 fi
 
@@ -48,7 +48,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for f in wordpress.zip sqlite.zip rankmath.zip yoast.zip wp-cli.phar; do
+for f in wordpress.zip sqlite.zip rankmath.zip yoast.zip seopress.zip wp-cli.phar; do
   if [[ ! -f "$CACHE/$f" ]]; then
     echo "missing $CACHE/$f — see NEXT.md for the download commands" >&2
     exit 1
@@ -66,6 +66,7 @@ mkdir -p "$SITE/wp-content/plugins" "$SITE/wp-content/mu-plugins"
 unzip -q "$CACHE/sqlite.zip" -d "$SITE/wp-content/plugins"
 unzip -q "$CACHE/rankmath.zip" -d "$SITE/wp-content/plugins"
 unzip -q "$CACHE/yoast.zip" -d "$SITE/wp-content/plugins"
+unzip -q "$CACHE/seopress.zip" -d "$SITE/wp-content/plugins"
 cp "$SITE/wp-content/plugins/sqlite-database-integration/db.copy" "$SITE/wp-content/db.php"
 ln -s "$PLUGIN_ROOT" "$SITE/wp-content/plugins/crawl-cove-connector"
 
@@ -84,11 +85,12 @@ log "wp core config + install (SQLite drop-in, no MySQL)"
 "${WPCLI[@]}" core install --path="$SITE" --url="$URL" --title="CCC Integration" \
   --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email --quiet
 
-if [[ "$ADAPTER" == "rankmath" ]]; then
-  "${WPCLI[@]}" plugin activate sqlite-database-integration crawl-cove-connector seo-by-rank-math --path="$SITE" --quiet
-else
-  "${WPCLI[@]}" plugin activate sqlite-database-integration crawl-cove-connector wordpress-seo --path="$SITE" --quiet
-fi
+case "$ADAPTER" in
+  rankmath) SEO_PLUGIN="seo-by-rank-math" ;;
+  yoast)    SEO_PLUGIN="wordpress-seo" ;;
+  seopress) SEO_PLUGIN="wp-seopress" ;;
+esac
+"${WPCLI[@]}" plugin activate sqlite-database-integration crawl-cove-connector "$SEO_PLUGIN" --path="$SITE" --quiet
 
 log "users: editor (can edit any post), author (own posts only), subscriber (none)"
 "${WPCLI[@]}" user create ccc_editor editor@example.com --role=editor --user_pass=editor-pass --path="$SITE" --quiet

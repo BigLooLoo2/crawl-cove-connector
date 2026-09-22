@@ -1,6 +1,6 @@
 # Crawl Cove Connector
 
-WordPress companion plugin for the [Crawl Cove](https://crawlcove.com) desktop SEO crawler: push approved title and meta description fixes straight into **Yoast SEO** or **Rank Math**, with a full change log and one-click revert.
+WordPress companion plugin for the [Crawl Cove](https://crawlcove.com) desktop SEO crawler: push approved title and meta description fixes straight into **Yoast SEO**, **Rank Math** or **SEOPress**, with a full change log and one-click revert.
 
 Crawl → review → push live. No CSV exports, no copy-pasting into the post editor.
 

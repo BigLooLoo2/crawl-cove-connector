@@ -87,11 +87,11 @@ class CCC_Admin {
 						<td><?php esc_html_e( 'SEO plugin detected', 'crawl-cove-connector' ); ?></td>
 						<td>
 							<?php if ( $adapter ) : ?>
-								<strong><?php echo esc_html( 'yoast' === $adapter->id ? 'Yoast SEO' : 'Rank Math' ); ?></strong>
+								<strong><?php echo esc_html( $adapter->label() ); ?></strong>
 								<?php echo esc_html( $adapter->plugin_version ? ' v' . $adapter->plugin_version : '' ); ?>
 							<?php else : ?>
 								<strong><?php esc_html_e( 'None', 'crawl-cove-connector' ); ?></strong>
-								— <?php esc_html_e( 'install Yoast SEO or Rank Math; fixes cannot be applied without one.', 'crawl-cove-connector' ); ?>
+								— <?php esc_html_e( 'install Yoast SEO, Rank Math or SEOPress; fixes cannot be applied without one.', 'crawl-cove-connector' ); ?>
 							<?php endif; ?>
 						</td>
 					</tr>

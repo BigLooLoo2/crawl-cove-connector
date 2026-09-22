@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 — 2026-09-22
+
+- SEOPress adapter (`_seopress_titles_title` / `_seopress_titles_desc`),
+  verified against SEOPress 10.2 source: same postmeta keys its own admin
+  metabox saves to, empty value deletes the meta key exactly like Yoast and
+  Rank Math. Detection via `SEOPRESS_VERSION`.
+- `CCC_Adapter::label()` for the admin page's plugin-name display (was an
+  inline Yoast/Rank Math ternary, now scales to any adapter).
+- wordpress.org submission pack verified: `wp plugin check` via a new
+  `tests/integration/plugin-check.sh` (production file set only — the
+  integration harness's whole-repo symlink makes Plugin Check hang on
+  vendor/'s dev tooling) — 0 errors, 0 warnings.
+- Investigated AIOSEO (All in One SEO) for a third adapter: its title/
+  description live in a custom `wp_aioseo_posts` table with 40+ JSON-encoded
+  columns, and the only in-plugin write path is explicitly marked
+  `@internal Not a public extension surface`. Needs its own integration
+  harness before shipping, not a quick postmeta-style addition — left for a
+  dedicated session (see BACKLOG.md).
+
 ## 0.1.1 — 2026-09-22
 
 - Fix: `resolve_url()` now verifies `get_post()` before returning a resolved

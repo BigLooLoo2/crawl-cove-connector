@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 class CCC_Adapter {
 
 	/**
-	 * 'yoast' or 'rankmath'.
+	 * 'yoast', 'rankmath' or 'seopress'.
 	 *
 	 * @var string
 	 */
@@ -44,7 +44,7 @@ class CCC_Adapter {
 	/**
 	 * Build an adapter for one detected SEO plugin.
 	 *
-	 * @param string $id               'yoast' or 'rankmath'.
+	 * @param string $id               'yoast', 'rankmath' or 'seopress'.
 	 * @param string $title_key        Post meta key for the title override.
 	 * @param string $description_key  Post meta key for the meta description.
 	 * @param string $plugin_version   Detected SEO plugin version, '' if unknown.
@@ -57,8 +57,9 @@ class CCC_Adapter {
 	}
 
 	/**
-	 * Detect the active SEO plugin. Yoast wins if both are somehow active,
-	 * matching the order the crawler reports.
+	 * Detect the active SEO plugin. Yoast wins over Rank Math, which wins
+	 * over SEOPress, if more than one is somehow active — matching the
+	 * order the crawler reports.
 	 *
 	 * @return CCC_Adapter|null Null when no supported SEO plugin is active.
 	 */
@@ -70,7 +71,24 @@ class CCC_Adapter {
 			$ver = defined( 'RANK_MATH_VERSION' ) ? RANK_MATH_VERSION : '';
 			return new self( 'rankmath', 'rank_math_title', 'rank_math_description', $ver );
 		}
+		if ( defined( 'SEOPRESS_VERSION' ) ) {
+			return new self( 'seopress', '_seopress_titles_title', '_seopress_titles_desc', SEOPRESS_VERSION );
+		}
 		return null;
+	}
+
+	/**
+	 * Human-readable name of the detected SEO plugin, for admin display.
+	 *
+	 * @return string
+	 */
+	public function label() {
+		$labels = array(
+			'yoast'    => 'Yoast SEO',
+			'rankmath' => 'Rank Math',
+			'seopress' => 'SEOPress',
+		);
+		return isset( $labels[ $this->id ] ) ? $labels[ $this->id ] : $this->id;
 	}
 
 	/**
@@ -115,7 +133,8 @@ class CCC_Adapter {
 
 	/**
 	 * An empty string means "remove the override, fall back to the SEO
-	 * plugin's template" — both Yoast and Rank Math treat absent meta that way.
+	 * plugin's template" — Yoast, Rank Math and SEOPress all treat absent
+	 * meta that way.
 	 *
 	 * @param int    $post_id Post id.
 	 * @param string $key     Post meta key to write.
