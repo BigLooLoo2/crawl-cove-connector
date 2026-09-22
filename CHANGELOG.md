@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.1 — 2026-09-22
+
+- Fix: `resolve_url()` now verifies `get_post()` before returning a resolved
+  id — WordPress core's `url_to_postid()` pattern-matches `?p=N` out of the
+  query string and returns `N` even when no such post exists, so `/resolve`
+  was reporting a phantom post as successfully resolved.
+- Real-WordPress integration test harness (`tests/integration/`): SQLite
+  drop-in, Rank Math and Yoast, all five REST routes end-to-end.
+- Security pass: auth sweep, subscriber/author/editor capability matrix,
+  `/apply` + `/resolve` payload fuzzing. No vulnerabilities found
+  (`SECURITY-NOTES.md`).
+- PHPCS clean against WordPress-Extra + WordPress-Docs (`phpcs.xml.dist`).
+- POT file for translators (`languages/crawl-cove-connector.pot`).
+- wordpress.org submission pack: icon/banner/screenshot assets
+  (`wordpress-org/`).
+
 ## 0.1.0 — 2026-09-21
 
 First version.

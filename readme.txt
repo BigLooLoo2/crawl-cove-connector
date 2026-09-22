@@ -2,13 +2,13 @@
 Contributors: crawlcove
 Tags: seo, meta description, title tag, yoast, rank math
 Requires at least: 6.2
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Apply reviewed title and meta description fixes from the Crawl Cove desktop crawler to Yoast SEO or Rank Math — with a change log and one-click revert.
+Push reviewed title and meta description fixes from the Crawl Cove crawler into Yoast SEO or Rank Math, with a change log and one-click revert.
 
 == Description ==
 
@@ -43,7 +43,16 @@ No. It writes only the SEO title and meta description fields, only for changes y
 
 Every write is capability-checked, validated, length-capped and logged with its previous value; reverting is one click. Authentication is core WordPress Application Passwords over HTTPS.
 
+== Screenshots ==
+
+1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
+
 == Changelog ==
+
+= 0.1.1 =
+* Fix: `/resolve` could report a nonexistent post as successfully resolved for a numeric URL like `?p=999` — WordPress core's `url_to_postid()` returns that id even with no matching post; now verified before returning.
+* Real-WordPress integration test harness (Rank Math and Yoast, SQLite, all five REST routes) and a security pass (auth, capability matrix, payload fuzzing) — no vulnerabilities found.
+* PHPCS clean against WordPress-Extra + WordPress-Docs; POT file for translators.
 
 = 0.1.0 =
 * First release: Yoast SEO and Rank Math adapters, REST API (status/resolve/apply/changes/revert), dry-run, change log with revert, admin page under Tools.
