@@ -5,7 +5,7 @@
 # BASE/EDITOR/AUTHOR/SUBSCRIBER plus PASS/FAIL counters.
 
 : "${CCC_URL:?}" "${CCC_EDITOR_PW:?}" "${CCC_AUTHOR_PW:?}" "${CCC_SUBSCRIBER_PW:?}"
-: "${CCC_POST_EDITOR:?}" "${CCC_POST_AUTHOR:?}" "${CCC_ADAPTER:?}"
+: "${CCC_POST_EDITOR:?}" "${CCC_POST_AUTHOR:?}" "${CCC_POST_HOME:?}" "${CCC_ADAPTER:?}"
 
 BASE="$CCC_URL/index.php?rest_route=/crawlcove/v1"
 EDITOR="ccc_editor:$CCC_EDITOR_PW"

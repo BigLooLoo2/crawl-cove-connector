@@ -83,4 +83,19 @@ check "revert: repeat is 409 already-reverted" 409 "$RESP_HTTP" '.code' 'ccc_alr
 req POST /revert "" "{\"change_id\":$CHANGE_ID_TITLE}"
 check "revert: unauthenticated is 401" 401 "$RESP_HTTP" '.code' 'rest_forbidden' "$RESP_BODY"
 
+echo "-- static front page (site root) --"
+# run.sh configures show_on_front=page/page_on_front=$CCC_POST_HOME. Both
+# Yoast and Rank Math render that page's own title/description postmeta for
+# "/" in this (common) setup, so resolving and applying to the root URL
+# should work through the exact same code path as any other page.
+req POST /resolve "$EDITOR" "{\"urls\":[\"$CCC_URL/\"]}"
+check "resolve: site root resolves to the static front page" 200 "$RESP_HTTP" '.[0].post_id' "$CCC_POST_HOME" "$RESP_BODY"
+
+req POST /apply "$EDITOR" "{\"changes\":[{\"post_id\":$CCC_POST_HOME,\"title\":\"Homepage Title\",\"description\":\"Homepage Description\"}]}"
+check "apply: write to the front page ok" 200 "$RESP_HTTP" '.[0].ok' 'true' "$RESP_BODY"
+
+req POST /resolve "$EDITOR" "{\"urls\":[\"$CCC_URL/\"]}"
+check "resolve: front page title round-trips" 200 "$RESP_HTTP" '.[0].current.title' 'Homepage Title' "$RESP_BODY"
+check "resolve: front page description round-trips" 200 "$RESP_HTTP" '.[0].current.description' 'Homepage Description' "$RESP_BODY"
+
 summary

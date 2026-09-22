@@ -108,6 +108,20 @@ log "posts: one owned by editor, one owned by author"
 POST_EDITOR="$("${WPCLI[@]}" post create --post_title="Editor Post" --post_status=publish --post_author="$EDITOR_ID" --porcelain --path="$SITE")"
 POST_AUTHOR="$("${WPCLI[@]}" post create --post_title="Author Post" --post_status=publish --post_author="$AUTHOR_ID" --porcelain --path="$SITE")"
 
+# Static front page (the common WP setup: Settings -> Reading -> "A static
+# page"). Both Yoast and Rank Math render THIS PAGE'S OWN title/description
+# postmeta for the site root in that case (confirmed against real source:
+# Yoast's meta-surface.php for_home_page() calls find_by_id_and_type() on
+# page_on_front when show_on_front=page; Rank Math's paper/class-paper.php
+# maps is_home_static_page() to the same 'Singular' handler as any other
+# page) — only the rarer "your latest posts" homepage setting uses the
+# separate title-home-wpseo/homepage_title options. So resolving and
+# applying to "/" should work through the exact same code path as any
+# other page, with zero adapter changes; this proves it rather than assuming it.
+POST_HOME="$("${WPCLI[@]}" post create --post_type=page --post_title="Home" --post_status=publish --post_author="$EDITOR_ID" --porcelain --path="$SITE")"
+"${WPCLI[@]}" option update show_on_front page --path="$SITE" --quiet
+"${WPCLI[@]}" option update page_on_front "$POST_HOME" --path="$SITE" --quiet
+
 log "starting php -S on $URL"
 ( cd "$SITE" && exec php -S "127.0.0.1:$PORT" -t "$SITE" >"$HERE/.server.log" 2>&1 ) &
 SERVER_PID=$!
@@ -127,6 +141,7 @@ export CCC_AUTHOR_PW="$AUTHOR_PW"
 export CCC_SUBSCRIBER_PW="$SUBSCRIBER_PW"
 export CCC_POST_EDITOR="$POST_EDITOR"
 export CCC_POST_AUTHOR="$POST_AUTHOR"
+export CCC_POST_HOME="$POST_HOME"
 export CCC_ADAPTER="$ADAPTER"
 
 log "running REST route checks (adapter=$ADAPTER)"
