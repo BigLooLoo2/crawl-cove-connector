@@ -8,13 +8,22 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Admin page controller: Tools → Crawl Cove.
+ */
 class CCC_Admin {
 
+	/**
+	 * Hook the admin menu and the revert form handler.
+	 */
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_post_ccc_revert', array( __CLASS__, 'handle_revert' ) );
 	}
 
+	/**
+	 * Register the Tools → Crawl Cove submenu page.
+	 */
 	public static function menu() {
 		add_management_page(
 			__( 'Crawl Cove Connector', 'crawl-cove-connector' ),
@@ -25,6 +34,9 @@ class CCC_Admin {
 		);
 	}
 
+	/**
+	 * Admin-post.php handler for the per-row "Revert" button.
+	 */
 	public static function handle_revert() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Not allowed.', 'crawl-cove-connector' ) );
@@ -37,17 +49,27 @@ class CCC_Admin {
 		if ( $adapter && ! is_wp_error( CCC_Change_Log::revert( $change_id, $adapter ) ) ) {
 			$notice = 'reverted';
 		}
-		wp_safe_redirect( add_query_arg(
-			array( 'page' => 'crawl-cove-connector', 'ccc_notice' => $notice ),
-			admin_url( 'tools.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => 'crawl-cove-connector',
+					'ccc_notice' => $notice,
+				),
+				admin_url( 'tools.php' )
+			)
+		);
 		exit;
 	}
 
+	/**
+	 * Render the Tools → Crawl Cove page: status, setup steps, change log.
+	 */
 	public static function render() {
 		$adapter = CCC_Adapter::detect();
 		$log     = CCC_Change_Log::all();
-		$notice  = isset( $_GET['ccc_notice'] ) ? sanitize_key( $_GET['ccc_notice'] ) : '';
+		// Read-only display flag from our own redirect (handle_revert() already
+		// nonce-checked the action that set it); nothing here changes state.
+		$notice = isset( $_GET['ccc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ccc_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Crawl Cove Connector', 'crawl-cove-connector' ); ?></h1>
@@ -82,13 +104,15 @@ class CCC_Admin {
 
 			<h2><?php esc_html_e( 'Connect the Crawl Cove desktop app', 'crawl-cove-connector' ); ?></h2>
 			<ol style="max-width:700px">
-				<li><?php
+				<li>
+				<?php
 					printf(
 						/* translators: %s: link to the current user's profile page */
 						wp_kses( __( 'Create an <a href="%s">Application Password</a> for your user (Users → Profile → Application Passwords). Name it "Crawl Cove".', 'crawl-cove-connector' ), array( 'a' => array( 'href' => array() ) ) ),
 						esc_url( admin_url( 'profile.php#application-passwords-section' ) )
 					);
-				?></li>
+				?>
+				</li>
 				<li><?php esc_html_e( 'In Crawl Cove, open the site profile → WordPress → paste the site URL, your username and the application password.', 'crawl-cove-connector' ); ?></li>
 				<li><?php esc_html_e( 'Crawl, review the suggested title/description fixes, and push the approved ones. Every push lands in the log below and can be reverted.', 'crawl-cove-connector' ); ?></li>
 			</ol>

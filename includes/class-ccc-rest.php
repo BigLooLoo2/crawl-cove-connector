@@ -11,68 +11,125 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * REST controller for the crawlcove/v1 namespace.
+ */
 class CCC_Rest {
 
 	const NS = 'crawlcove/v1';
 
+	/**
+	 * Register all five REST routes.
+	 */
 	public static function register_routes() {
-		register_rest_route( self::NS, '/status', array(
-			'methods'             => 'GET',
-			'callback'            => array( __CLASS__, 'status' ),
-			'permission_callback' => array( __CLASS__, 'can_use' ),
-		) );
+		register_rest_route(
+			self::NS,
+			'/status',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'status' ),
+				'permission_callback' => array( __CLASS__, 'can_use' ),
+			)
+		);
 
-		register_rest_route( self::NS, '/resolve', array(
-			'methods'             => 'POST',
-			'callback'            => array( __CLASS__, 'resolve' ),
-			'permission_callback' => array( __CLASS__, 'can_use' ),
-			'args'                => array(
-				'urls' => array( 'required' => true, 'type' => 'array' ),
-			),
-		) );
+		register_rest_route(
+			self::NS,
+			'/resolve',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'resolve' ),
+				'permission_callback' => array( __CLASS__, 'can_use' ),
+				'args'                => array(
+					'urls' => array(
+						'required' => true,
+						'type'     => 'array',
+					),
+				),
+			)
+		);
 
-		register_rest_route( self::NS, '/apply', array(
-			'methods'             => 'POST',
-			'callback'            => array( __CLASS__, 'apply' ),
-			'permission_callback' => array( __CLASS__, 'can_use' ),
-			'args'                => array(
-				'changes' => array( 'required' => true, 'type' => 'array' ),
-				'dry_run' => array( 'type' => 'boolean', 'default' => false ),
-			),
-		) );
+		register_rest_route(
+			self::NS,
+			'/apply',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'apply' ),
+				'permission_callback' => array( __CLASS__, 'can_use' ),
+				'args'                => array(
+					'changes' => array(
+						'required' => true,
+						'type'     => 'array',
+					),
+					'dry_run' => array(
+						'type'    => 'boolean',
+						'default' => false,
+					),
+				),
+			)
+		);
 
-		register_rest_route( self::NS, '/changes', array(
-			'methods'             => 'GET',
-			'callback'            => array( __CLASS__, 'changes' ),
-			'permission_callback' => array( __CLASS__, 'can_use' ),
-		) );
+		register_rest_route(
+			self::NS,
+			'/changes',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'changes' ),
+				'permission_callback' => array( __CLASS__, 'can_use' ),
+			)
+		);
 
-		register_rest_route( self::NS, '/revert', array(
-			'methods'             => 'POST',
-			'callback'            => array( __CLASS__, 'revert' ),
-			'permission_callback' => array( __CLASS__, 'can_use' ),
-			'args'                => array(
-				'change_id' => array( 'required' => true, 'type' => 'integer' ),
-			),
-		) );
+		register_rest_route(
+			self::NS,
+			'/revert',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'revert' ),
+				'permission_callback' => array( __CLASS__, 'can_use' ),
+				'args'                => array(
+					'change_id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
 	}
 
+	/**
+	 * Permission callback shared by every route: the base requirement to use
+	 * the API at all. apply()/revert() re-check edit_post per post on top.
+	 *
+	 * @return bool
+	 */
 	public static function can_use() {
 		return current_user_can( 'edit_posts' );
 	}
 
+	/**
+	 * GET /status — plugin/site/detected-adapter info, no side effects.
+	 *
+	 * @return WP_REST_Response
+	 */
 	public static function status() {
 		$adapter = CCC_Adapter::detect();
-		return rest_ensure_response( array(
-			'plugin_version' => CCC_VERSION,
-			'wp_version'     => get_bloginfo( 'version' ),
-			'site_url'       => home_url(),
-			'seo_plugin'     => $adapter ? $adapter->id : 'none',
-			'seo_version'    => $adapter ? $adapter->plugin_version : '',
-			'can_apply'      => (bool) $adapter,
-		) );
+		return rest_ensure_response(
+			array(
+				'plugin_version' => CCC_VERSION,
+				'wp_version'     => get_bloginfo( 'version' ),
+				'site_url'       => home_url(),
+				'seo_plugin'     => $adapter ? $adapter->id : 'none',
+				'seo_version'    => $adapter ? $adapter->plugin_version : '',
+				'can_apply'      => (bool) $adapter,
+			)
+		);
 	}
 
+	/**
+	 * POST /resolve — map up to 100 URLs to post ids and their current SEO values.
+	 *
+	 * @param WP_REST_Request $request Request with a 'urls' array param.
+	 * @return WP_REST_Response|WP_Error
+	 */
 	public static function resolve( $request ) {
 		$adapter = self::require_adapter();
 		if ( is_wp_error( $adapter ) ) {
@@ -101,13 +158,22 @@ class CCC_Rest {
 				continue;
 			}
 			$out[] = array_merge(
-				array( 'url' => $url, 'ok' => true ),
+				array(
+					'url' => $url,
+					'ok'  => true,
+				),
 				CCC_Service::describe( $post_id, $adapter )
 			);
 		}
 		return rest_ensure_response( $out );
 	}
 
+	/**
+	 * POST /apply — write up to 50 title/description changes, dry-run or real.
+	 *
+	 * @param WP_REST_Request $request Request with 'changes' array and optional 'dry_run' bool.
+	 * @return WP_REST_Response|WP_Error
+	 */
 	public static function apply( $request ) {
 		$adapter = self::require_adapter();
 		if ( is_wp_error( $adapter ) ) {
@@ -124,10 +190,21 @@ class CCC_Rest {
 		return is_wp_error( $results ) ? $results : rest_ensure_response( $results );
 	}
 
+	/**
+	 * GET /changes — the full change log, newest first.
+	 *
+	 * @return WP_REST_Response
+	 */
 	public static function changes() {
 		return rest_ensure_response( CCC_Change_Log::all() );
 	}
 
+	/**
+	 * POST /revert — write a logged change's previous value back.
+	 *
+	 * @param WP_REST_Request $request Request with a 'change_id' integer param.
+	 * @return WP_REST_Response|WP_Error
+	 */
 	public static function revert( $request ) {
 		$adapter = self::require_adapter();
 		if ( is_wp_error( $adapter ) ) {
@@ -141,10 +218,19 @@ class CCC_Rest {
 		}
 
 		$done = CCC_Change_Log::revert( $change_id, $adapter );
-		return is_wp_error( $done ) ? $done : rest_ensure_response( array( 'ok' => true, 'change_id' => $change_id ) );
+		return is_wp_error( $done ) ? $done : rest_ensure_response(
+			array(
+				'ok'        => true,
+				'change_id' => $change_id,
+			)
+		);
 	}
 
-	/** @return CCC_Adapter|WP_Error */
+	/**
+	 * The active SEO adapter, or a WP_Error if neither Yoast nor Rank Math is active.
+	 *
+	 * @return CCC_Adapter|WP_Error
+	 */
 	private static function require_adapter() {
 		$adapter = CCC_Adapter::detect();
 		if ( ! $adapter ) {

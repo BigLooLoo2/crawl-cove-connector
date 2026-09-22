@@ -8,20 +8,47 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * One SEO-plugin adapter instance: which post-meta keys to read/write.
+ */
 class CCC_Adapter {
 
-	/** @var string 'yoast' or 'rankmath' */
+	/**
+	 * 'yoast' or 'rankmath'.
+	 *
+	 * @var string
+	 */
 	public $id;
 
-	/** @var string */
+	/**
+	 * Post meta key the active SEO plugin stores its title override under.
+	 *
+	 * @var string
+	 */
 	public $title_key;
 
-	/** @var string */
+	/**
+	 * Post meta key the active SEO plugin stores its meta description under.
+	 *
+	 * @var string
+	 */
 	public $description_key;
 
-	/** @var string Version of the detected SEO plugin ('' if unknown). */
+	/**
+	 * Version of the detected SEO plugin ('' if unknown).
+	 *
+	 * @var string
+	 */
 	public $plugin_version;
 
+	/**
+	 * Build an adapter for one detected SEO plugin.
+	 *
+	 * @param string $id               'yoast' or 'rankmath'.
+	 * @param string $title_key        Post meta key for the title override.
+	 * @param string $description_key  Post meta key for the meta description.
+	 * @param string $plugin_version   Detected SEO plugin version, '' if unknown.
+	 */
 	public function __construct( $id, $title_key, $description_key, $plugin_version = '' ) {
 		$this->id              = $id;
 		$this->title_key       = $title_key;
@@ -46,20 +73,42 @@ class CCC_Adapter {
 		return null;
 	}
 
-	/** @return string Currently stored SEO title override ('' = plugin default template). */
+	/**
+	 * Currently stored SEO title override ('' = plugin default template).
+	 *
+	 * @param int $post_id Post id.
+	 * @return string
+	 */
 	public function get_title( $post_id ) {
 		return (string) get_post_meta( $post_id, $this->title_key, true );
 	}
 
-	/** @return string Currently stored meta description ('' = none set). */
+	/**
+	 * Currently stored meta description ('' = none set).
+	 *
+	 * @param int $post_id Post id.
+	 * @return string
+	 */
 	public function get_description( $post_id ) {
 		return (string) get_post_meta( $post_id, $this->description_key, true );
 	}
 
+	/**
+	 * Write a new title override.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $value   New title override; '' removes it.
+	 */
 	public function set_title( $post_id, $value ) {
 		$this->set_meta( $post_id, $this->title_key, $value );
 	}
 
+	/**
+	 * Write a new meta description.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $value   New meta description; '' removes it.
+	 */
 	public function set_description( $post_id, $value ) {
 		$this->set_meta( $post_id, $this->description_key, $value );
 	}
@@ -67,6 +116,10 @@ class CCC_Adapter {
 	/**
 	 * An empty string means "remove the override, fall back to the SEO
 	 * plugin's template" — both Yoast and Rank Math treat absent meta that way.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $key     Post meta key to write.
+	 * @param string $value   New value; '' deletes the meta key instead.
 	 */
 	private function set_meta( $post_id, $key, $value ) {
 		if ( '' === $value ) {

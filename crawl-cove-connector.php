@@ -11,6 +11,8 @@
  * License:     GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: crawl-cove-connector
+ *
+ * @package crawl-cove-connector
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -31,6 +33,9 @@ if ( is_admin() ) {
 
 add_action( 'rest_api_init', array( 'CCC_Rest', 'register_routes' ) );
 
-add_action( 'plugins_loaded', function () {
-	load_plugin_textdomain( 'crawl-cove-connector' );
-} );
+add_action(
+	'plugins_loaded',
+	function () {
+		load_plugin_textdomain( 'crawl-cove-connector' );
+	}
+);

@@ -11,19 +11,31 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Applied-change log, capped, with revert support.
+ */
 class CCC_Change_Log {
 
-	const OPTION = 'ccc_change_log';
-	const SEQ_OPTION = 'ccc_change_seq';
+	const OPTION      = 'ccc_change_log';
+	const SEQ_OPTION  = 'ccc_change_seq';
 	const MAX_ENTRIES = 200;
 
-	/** @return array[] Newest first. */
+	/**
+	 * All logged changes, newest first.
+	 *
+	 * @return array[]
+	 */
 	public static function all() {
 		$log = get_option( self::OPTION, array() );
 		return is_array( $log ) ? $log : array();
 	}
 
-	/** @return array|null */
+	/**
+	 * Find one logged change by id.
+	 *
+	 * @param int $change_id Change id.
+	 * @return array|null
+	 */
 	public static function find( $change_id ) {
 		foreach ( self::all() as $entry ) {
 			if ( (int) $entry['id'] === (int) $change_id ) {
@@ -44,7 +56,7 @@ class CCC_Change_Log {
 	 * @return array The stored entry, including its id.
 	 */
 	public static function record( $post_id, $field, $from, $to, $source ) {
-		$id    = (int) get_option( self::SEQ_OPTION, 0 ) + 1;
+		$id = (int) get_option( self::SEQ_OPTION, 0 ) + 1;
 		update_option( self::SEQ_OPTION, $id, false );
 
 		$entry = array(
@@ -71,6 +83,8 @@ class CCC_Change_Log {
 	/**
 	 * Revert one change: write its previous value back through the adapter.
 	 *
+	 * @param int         $change_id Change id.
+	 * @param CCC_Adapter $adapter   Active SEO adapter to write the reverted value through.
 	 * @return true|WP_Error
 	 */
 	public static function revert( $change_id, CCC_Adapter $adapter ) {

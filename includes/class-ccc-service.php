@@ -8,6 +8,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Core service: URL resolution, validation and applying changes.
+ */
 class CCC_Service {
 
 	const MAX_TITLE_LEN       = 512;
@@ -17,6 +20,7 @@ class CCC_Service {
 	/**
 	 * Resolve a URL on this site to a post id.
 	 *
+	 * @param string $url URL to resolve.
 	 * @return int|WP_Error Post id (> 0) or an error explaining why not.
 	 */
 	public static function resolve_url( $url ) {
@@ -55,15 +59,17 @@ class CCC_Service {
 	/**
 	 * Describe one post's current SEO values for the desktop app's diff view.
 	 *
+	 * @param int         $post_id Post id.
+	 * @param CCC_Adapter $adapter Active SEO adapter to read current values from.
 	 * @return array
 	 */
 	public static function describe( $post_id, CCC_Adapter $adapter ) {
 		return array(
-			'post_id'     => (int) $post_id,
-			'post_title'  => get_the_title( $post_id ),
-			'permalink'   => get_permalink( $post_id ),
-			'editable'    => current_user_can( 'edit_post', $post_id ),
-			'current'     => array(
+			'post_id'    => (int) $post_id,
+			'post_title' => get_the_title( $post_id ),
+			'permalink'  => get_permalink( $post_id ),
+			'editable'   => current_user_can( 'edit_post', $post_id ),
+			'current'    => array(
 				'title'       => $adapter->get_title( $post_id ),
 				'description' => $adapter->get_description( $post_id ),
 			),
@@ -76,6 +82,7 @@ class CCC_Service {
 	 * Accepted shape: { url? , post_id?, title?, description? } — at least one
 	 * of url/post_id, at least one of title/description.
 	 *
+	 * @param mixed $item One raw change item from the request body.
 	 * @return array|WP_Error { post_id, fields: { title?: string, description?: string } }
 	 */
 	public static function validate_change( $item ) {
@@ -98,17 +105,22 @@ class CCC_Service {
 		}
 
 		$fields = array();
-		foreach ( array( 'title' => self::MAX_TITLE_LEN, 'description' => self::MAX_DESCRIPTION_LEN ) as $field => $max ) {
+		foreach ( array(
+			'title'       => self::MAX_TITLE_LEN,
+			'description' => self::MAX_DESCRIPTION_LEN,
+		) as $field => $max ) {
 			if ( ! array_key_exists( $field, $item ) ) {
 				continue;
 			}
 			if ( ! is_string( $item[ $field ] ) ) {
+				/* translators: %s: field name, either "title" or "description" */
 				return new WP_Error( 'ccc_bad_value', sprintf( __( '%s must be a string.', 'crawl-cove-connector' ), $field ), array( 'status' => 400 ) );
 			}
 			$value = sanitize_text_field( $item[ $field ] );
 			if ( strlen( $value ) > $max ) {
 				return new WP_Error(
 					'ccc_too_long',
+					/* translators: 1: field name, either "title" or "description"; 2: max length allowed */
 					sprintf( __( '%1$s is longer than %2$d characters.', 'crawl-cove-connector' ), $field, $max ),
 					array( 'status' => 400 )
 				);
@@ -131,8 +143,8 @@ class CCC_Service {
 	 * the rest. Dry-run validates and diffs without writing anything.
 	 *
 	 * @param array       $changes Raw items from the request body.
-	 * @param bool        $dry_run
-	 * @param CCC_Adapter $adapter
+	 * @param bool        $dry_run Validate and diff without writing anything.
+	 * @param CCC_Adapter $adapter Active SEO adapter to write through.
 	 * @param string      $source  Actor recorded in the change log.
 	 * @return array|WP_Error Per-item results, or WP_Error for a bad batch.
 	 */
@@ -143,21 +155,22 @@ class CCC_Service {
 		if ( count( $changes ) > self::MAX_BATCH ) {
 			return new WP_Error(
 				'ccc_batch_too_big',
+				/* translators: %d: maximum number of changes allowed per request */
 				sprintf( __( 'At most %d changes per request.', 'crawl-cove-connector' ), self::MAX_BATCH ),
 				array( 'status' => 400 )
 			);
 		}
 
-		$results        = array();
-		$touched_posts  = array();
+		$results       = array();
+		$touched_posts = array();
 
 		foreach ( array_values( $changes ) as $i => $item ) {
 			$valid = self::validate_change( $item );
 			if ( is_wp_error( $valid ) ) {
 				$results[] = array(
-					'index' => $i,
-					'ok'    => false,
-					'error' => $valid->get_error_code(),
+					'index'   => $i,
+					'ok'      => false,
+					'error'   => $valid->get_error_code(),
 					'message' => $valid->get_error_message(),
 				);
 				continue;
@@ -166,9 +179,9 @@ class CCC_Service {
 			$post_id = $valid['post_id'];
 			if ( ! current_user_can( 'edit_post', $post_id ) ) {
 				$results[] = array(
-					'index' => $i,
-					'ok'    => false,
-					'error' => 'ccc_forbidden',
+					'index'   => $i,
+					'ok'      => false,
+					'error'   => 'ccc_forbidden',
 					'message' => __( 'This user may not edit that post.', 'crawl-cove-connector' ),
 				);
 				continue;
@@ -188,8 +201,8 @@ class CCC_Service {
 					} else {
 						$adapter->set_description( $post_id, $to );
 					}
-					$entry = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
-					$step['change_id'] = $entry['id'];
+					$entry                     = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
+					$step['change_id']         = $entry['id'];
 					$touched_posts[ $post_id ] = true;
 				}
 				$applied[ $field ] = $step;
