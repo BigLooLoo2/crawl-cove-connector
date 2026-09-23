@@ -1,5 +1,11 @@
 vendor/
 .phpunit.result.cache
+.claude/
+CLAUDE.md
+*.log
+.env
+.env.*
+.DS_Store
 node_modules/
 *.zip
 tests/integration/.cache/

@@ -1,12 +1,31 @@
-# Crawl Cove Connector
+# Crawl Cove Connector — WordPress SEO Plugin for Bulk Title & Meta Description Fixes
 
-WordPress companion plugin for the [Crawl Cove](https://crawlcove.com) desktop SEO crawler: push approved title and meta description fixes straight into **Yoast SEO**, **Rank Math**, **SEOPress** or **AIOSEO**, with a full change log and one-click revert.
+The official WordPress companion plugin for [Crawl Cove](https://crawlcove.com), the desktop SEO crawler. Push approved page title and meta description fixes from your SEO audit straight into **Yoast SEO**, **Rank Math**, **SEOPress** or **All in One SEO (AIOSEO)**, with a full change log and one-click revert.
 
-Crawl → review → push live. No CSV exports, no copy-pasting into the post editor.
+Crawl your site, review the suggested fixes in the app, push the ones you approve. No CSV exports, no spreadsheets, no copy-pasting into the post editor one page at a time.
+
+![Tools → Crawl Cove change log in the WordPress admin](wordpress-org/screenshot-1.png)
+
+## Why this plugin exists
+
+Every SEO crawler can find missing, duplicate, too-long or too-short titles and meta descriptions. Almost none of them can fix any of it. The usual workflow is: export a CSV, open each post in the WordPress editor, find the SEO plugin's meta box, paste, save, repeat a few hundred times.
+
+Crawl Cove Connector closes that loop. The [Crawl Cove desktop crawler](https://crawlcove.com) sends the fixes you approved to your site over the WordPress REST API, and this plugin writes them into the native fields of whichever SEO plugin you already use. Nothing is duplicated or overridden at render time; your SEO plugin keeps working exactly as before, just with better values.
+
+## Features
+
+- **Bulk-apply title and meta description fixes** approved in the Crawl Cove app, in batches, with per-item results.
+- **Works with the four major WordPress SEO plugins**: Yoast SEO, Rank Math, SEOPress and AIOSEO. The connector detects which one is active and writes its native fields.
+- **Full change log with one-click revert**: every write records the previous value. Undo any change from **Tools → Crawl Cove** or from the app.
+- **Dry-run mode** shows exactly what would change before anything is written.
+- **Authentication via WordPress core Application Passwords**: no extra accounts, no API keys stored by the plugin, revoke access any time from your user profile.
+- **Respects WordPress permissions**: a connected user can only change posts they are allowed to edit (`edit_post` checked per post).
+- **Private by design**: no external requests, no tracking, no data leaves your site. The plugin only receives what you send it.
+- **Small and auditable**: a few hundred lines of GPL PHP, unit- and integration-tested, PHPCS-clean against WordPress-Extra and WordPress-Docs.
 
 ## How it works
 
-The plugin registers a small REST API under `crawlcove/v1` (auth: WordPress core Application Passwords):
+The plugin registers a REST API under `crawlcove/v1` (auth: WordPress core Application Passwords):
 
 | Route | Method | Purpose |
 |---|---|---|
@@ -24,6 +43,26 @@ Safety model:
 - Empty string means "remove the override, fall back to the SEO plugin's template".
 - No external requests, no tracking, no data leaves the site.
 
+See [SECURITY-NOTES.md](SECURITY-NOTES.md) for the full security pass (capability matrix, fuzzing, findings).
+
+## Installation
+
+1. Install and activate the plugin on your WordPress site (requires WordPress 6.2+ and PHP 7.4+).
+2. Create an Application Password: **Users → Profile → Application Passwords → "Crawl Cove"**.
+3. In the [Crawl Cove desktop app](https://crawlcove.com), open your site profile → WordPress and enter the site URL, username and application password.
+4. Crawl, review the suggested fixes, push the approved ones. Review or revert them any time under **Tools → Crawl Cove**.
+
+## Frequently asked questions
+
+**Does it work without the Crawl Cove app?**
+The plugin is the receiving end; fixes are reviewed and sent from the desktop crawler. The change log and revert work standalone in wp-admin.
+
+**Will it conflict with my SEO plugin?**
+No. It writes the same post meta fields your SEO plugin owns (for example Yoast's `_yoast_wpseo_title`), then gets out of the way. There is nothing to keep in sync.
+
+**Can it change content or anything besides SEO fields?**
+No. It writes SEO titles and meta descriptions, nothing else, and only for posts the authenticated user can edit.
+
 ## Development
 
 ```
@@ -32,10 +71,14 @@ composer test     # PHPUnit against lightweight WP stubs (tests/bootstrap.php)
 composer lint     # php -l over all plugin files
 ```
 
-The core logic (`CCC_Service`, `CCC_Adapter`, `CCC_Change_Log`) is deliberately free of `WP_REST_*` types so it unit-tests without a WordPress install. Integration smoke-testing against a real WordPress runs before each release.
+The core logic (`CCC_Service`, `CCC_Adapter`, `CCC_Change_Log`) is deliberately free of `WP_REST_*` types so it unit-tests without a WordPress install. Integration smoke-testing against a real WordPress (all four adapters, plus a security check suite) runs before each release: see `tests/integration/`.
 
 ## Releasing
 
-Versions are tagged `vX.Y.Z` on `main`. Releases (and the WordPress.org submission) go through the CrawlCove approvals queue — see the ops repo.
+Versions are tagged `vX.Y.Z` on `main`. See [CHANGELOG.md](CHANGELOG.md).
 
-License: GPLv2 or later.
+## About Crawl Cove
+
+[Crawl Cove](https://crawlcove.com) is a desktop SEO crawler for auditing sites of any size: broken links, redirects, duplicate content, titles and meta descriptions, structured data and more, with your data staying on your machine.
+
+License: [GPLv2 or later](LICENSE).
