@@ -43,6 +43,32 @@ Safety model:
 - Empty string means "remove the override, fall back to the SEO plugin's template".
 - No external requests, no tracking, no data leaves the site.
 
+### The homepage target (`post_id: 0`)
+
+A site with no static front page set (Settings → Reading → **"Your latest posts"**)
+has no post to hold a title/description override for `/` — Yoast and Rank Math each
+keep it in their own settings instead. `/resolve` reports the site root as
+`post_id: 0` in that case (a static front page still resolves to its own real
+post id, exactly like any other page — nothing changes there); pass `post_id: 0`
+back to `/apply` or `/revert` to target it.
+
+- **Supported adapters**: Yoast SEO and Rank Math only. SEOPress and AIOSEO
+  changes to `post_id: 0` fail with `ccc_home_unsupported` — the change is
+  reported, not silently dropped.
+- **Capability**: `manage_options`, not `edit_post` — there is no post to check
+  `edit_post` against, and Settings → Reading (where this value lives natively)
+  already requires it.
+- **Rank Math's homepage title cannot be cleared**: unlike every other
+  title/description field in this plugin, an empty string sent for Rank Math's
+  homepage title is rejected with `ccc_home_title_clear_unsupported` instead of
+  being written. Verified against real Rank Math source: its homepage title has
+  no fallback template applied at render time (an empty stored value renders as
+  a literally empty `<title>` tag), unlike Yoast's homepage title/description and
+  Rank Math's own homepage description, which do fall back safely. Set a new
+  title instead of clearing it, or clear it from Rank Math's own settings page.
+- Sending `post_id: 0` on a site that **does** have a static front page returns
+  `ccc_no_homepage_target` — pass that page's own post id instead.
+
 See [SECURITY-NOTES.md](SECURITY-NOTES.md) for the full security pass (capability matrix, fuzzing, findings).
 
 ## Installation

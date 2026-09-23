@@ -102,10 +102,13 @@ class CCC_Adapter {
 	/**
 	 * Currently stored SEO title override ('' = plugin default template).
 	 *
-	 * @param int $post_id Post id.
+	 * @param int $post_id Post id, or CCC_Service::HOME_ID for the homepage.
 	 * @return string
 	 */
 	public function get_title( $post_id ) {
+		if ( 0 === $post_id ) {
+			return $this->get_home_field( 'title' );
+		}
 		if ( 'aioseo' === $this->id ) {
 			return (string) $this->aioseo_post( $post_id )->title;
 		}
@@ -115,10 +118,13 @@ class CCC_Adapter {
 	/**
 	 * Currently stored meta description ('' = none set).
 	 *
-	 * @param int $post_id Post id.
+	 * @param int $post_id Post id, or CCC_Service::HOME_ID for the homepage.
 	 * @return string
 	 */
 	public function get_description( $post_id ) {
+		if ( 0 === $post_id ) {
+			return $this->get_home_field( 'description' );
+		}
 		if ( 'aioseo' === $this->id ) {
 			return (string) $this->aioseo_post( $post_id )->description;
 		}
@@ -128,10 +134,14 @@ class CCC_Adapter {
 	/**
 	 * Write a new title override.
 	 *
-	 * @param int    $post_id Post id.
+	 * @param int    $post_id Post id, or CCC_Service::HOME_ID for the homepage.
 	 * @param string $value   New title override; '' removes it.
 	 */
 	public function set_title( $post_id, $value ) {
+		if ( 0 === $post_id ) {
+			$this->set_home_field( 'title', $value );
+			return;
+		}
 		if ( 'aioseo' === $this->id ) {
 			$this->aioseo_save( $post_id, 'title', $value );
 			return;
@@ -142,15 +152,115 @@ class CCC_Adapter {
 	/**
 	 * Write a new meta description.
 	 *
-	 * @param int    $post_id Post id.
+	 * @param int    $post_id Post id, or CCC_Service::HOME_ID for the homepage.
 	 * @param string $value   New meta description; '' removes it.
 	 */
 	public function set_description( $post_id, $value ) {
+		if ( 0 === $post_id ) {
+			$this->set_home_field( 'description', $value );
+			return;
+		}
 		if ( 'aioseo' === $this->id ) {
 			$this->aioseo_save( $post_id, 'description', $value );
 			return;
 		}
 		$this->set_meta( $post_id, $this->description_key, $value );
+	}
+
+	/**
+	 * Whether this adapter can read/write the homepage title/description at
+	 * all. True only for Yoast and Rank Math — verified against real plugin
+	 * source (23 Sept 2026): both store a "your latest posts" homepage's
+	 * title/description in a plugin options array (not postmeta), read via a
+	 * safe read-modify-write helper. SEOPress and AIOSEO's equivalents are
+	 * unresearched; report unsupported rather than guess.
+	 *
+	 * @return bool
+	 */
+	public function supports_home() {
+		return in_array( $this->id, array( 'yoast', 'rankmath' ), true );
+	}
+
+	/**
+	 * Whether writing '' to the homepage title actually falls back to a
+	 * sensible default, or leaves a genuinely blank <title>. Verified
+	 * against real plugin source (23 Sept 2026):
+	 * - Yoast: `Indexable_Home_Page_Presentation::generate_title()` falls
+	 *   back to `Options_Helper::get_title_default()` whenever the stored
+	 *   value is empty — '' is safe.
+	 * - Rank Math: `Blog::title()` calls
+	 *   `Paper::get_from_options( 'homepage_title' )` with no fallback
+	 *   argument, so an empty stored value renders as a literally empty
+	 *   <title> tag — no separate "default template" is re-applied at read
+	 *   time (the template text you see in Rank Math's settings UI is only
+	 *   ever a seeded initial value, not a live fallback). Rank Math's
+	 *   homepage DESCRIPTION is unaffected: `Blog::description()` passes
+	 *   `get_bloginfo( 'description' )` as its fallback, so clearing it is
+	 *   safe.
+	 *
+	 * @return bool
+	 */
+	public function can_clear_home_title() {
+		return 'rankmath' !== $this->id;
+	}
+
+	/**
+	 * Read one homepage field ('title' or 'description') from the active
+	 * SEO plugin's own storage. '' for an adapter without homepage support
+	 * (caller must gate writes on supports_home() first).
+	 *
+	 * @param string $field 'title' or 'description'.
+	 * @return string
+	 */
+	private function get_home_field( $field ) {
+		if ( 'yoast' === $this->id ) {
+			$key = ( 'title' === $field ) ? 'title-home-wpseo' : 'metadesc-home-wpseo';
+			return (string) \WPSEO_Options::get( $key, '' );
+		}
+		if ( 'rankmath' === $this->id ) {
+			$titles = (array) get_option( 'rank-math-options-titles', array() );
+			$key    = ( 'title' === $field ) ? 'homepage_title' : 'homepage_description';
+			return isset( $titles[ $key ] ) ? (string) $titles[ $key ] : '';
+		}
+		return '';
+	}
+
+	/**
+	 * Write one homepage field through the active SEO plugin's own safe
+	 * read-modify-write path — never a bare `update_option()` on the whole
+	 * settings array, which would silently wipe every other setting it
+	 * holds (title templates, social settings, etc.) alongside it.
+	 *
+	 * @param string $field 'title' or 'description'.
+	 * @param string $value New value.
+	 */
+	private function set_home_field( $field, $value ) {
+		if ( 'yoast' === $this->id ) {
+			$key = ( 'title' === $field ) ? 'title-home-wpseo' : 'metadesc-home-wpseo';
+			// WPSEO_Options::save_option() reads the full 'wpseo_titles'
+			// option, patches this one key, writes the whole array back —
+			// the safe pattern this option needs (confirmed at
+			// inc/options/class-wpseo-options.php:516 in Yoast 28.6 source).
+			\WPSEO_Options::save_option( 'wpseo_titles', $key, $value );
+			return;
+		}
+		if ( 'rankmath' === $this->id ) {
+			$key            = ( 'title' === $field ) ? 'homepage_title' : 'homepage_description';
+			$titles         = (array) get_option( 'rank-math-options-titles', array() );
+			$titles[ $key ] = $value;
+			update_option( 'rank-math-options-titles', $titles );
+			// Rank Math caches its parsed settings for the rest of the
+			// request in a runtime singleton; reset it so anything reading
+			// settings later in the same request (e.g. a subsequent /resolve
+			// call in the same batch) sees the new value, matching what
+			// Rank Math's own Abilities API does after a settings write.
+			if ( function_exists( 'rank_math' ) ) {
+				$rank_math = rank_math();
+				if ( isset( $rank_math->settings ) && is_object( $rank_math->settings ) && method_exists( $rank_math->settings, 'reset' ) ) {
+					$rank_math->settings->reset();
+				}
+			}
+		}
 	}
 
 	/**

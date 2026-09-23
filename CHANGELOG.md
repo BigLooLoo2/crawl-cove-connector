@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.4.0 — 2026-09-23
+
+- Homepage title/description support for sites with **no static front page**
+  (Settings → Reading → "Your latest posts"). Previously only a static front
+  page worked, because it's just a normal page and CCC already resolved/wrote
+  it like any other post; a "latest posts" homepage has no post to hold an
+  override, so Yoast and Rank Math each keep it in their own settings —
+  `wpseo_titles` (`title-home-wpseo` / `metadesc-home-wpseo`) and
+  `rank-math-options-titles` (`homepage_title` / `homepage_description`)
+  respectively, both confirmed against real plugin source and both written
+  through the plugin's own safe read-modify-write helper (`WPSEO_Options::
+  save_option()` for Yoast; read-whole-array-then-`update_option()` for Rank
+  Math), never a bare option overwrite — either would silently wipe every
+  other setting sharing that option array.
+- New REST target: `/resolve`, `/apply` and `/revert` now accept `post_id: 0`
+  meaning "the homepage" (`CCC_Service::HOME_ID`). `/resolve` reports it
+  automatically for the site root when there's no static front page.
+  Permission is `manage_options`, not `edit_post` (there's no post to check
+  `edit_post` against). SEOPress and AIOSEO report `ccc_home_unsupported`
+  rather than silently dropping the change; sending `post_id: 0` on a site
+  that *does* have a static front page reports `ccc_no_homepage_target`.
+- Found and fixed while implementing, before it ever wrote anything wrong:
+  (1) a homepage write must never trigger the post-apply `wp_update_post()`
+  "touch" — `wp_update_post( [ 'ID' => 0 ] )` is WordPress core's signal to
+  **insert a new post**, not a no-op, which would have created a stray empty
+  post on every homepage change; (2) the initial homepage-URL matcher ignored
+  query strings, so a "Plain" permalink post at the site root
+  (`/?p=5`) was misidentified as the homepage — fixed by requiring an empty
+  query string; (3) Rank Math's homepage title has no template fallback when
+  cleared (unlike Yoast's homepage fields and Rank Math's own homepage
+  description, which do fall back safely) — verified against real Rank Math
+  source, confirmed on a live install, and now refused with
+  `ccc_home_title_clear_unsupported` instead of shipping a blank
+  browser-tab title to a stranger's site.
+- `tests/integration/homepage-checks.sh` (new, run by `run.sh` for every
+  adapter): switches a real WordPress site to "your latest posts" mode,
+  proves the resolve/apply/revert round-trip against the SEO plugin's own
+  stored option (not just CCC's own read-back), the `manage_options`
+  capability gate, the Rank Math clear-title guard, and the
+  `ccc_home_unsupported` path for SEOPress/AIOSEO. 59 unit tests (was 37,
+  +22), full 4-adapter integration suite still green.
+
 ## 0.3.0 — 2026-09-22
 
 - AIOSEO adapter. Structurally different from the other three: AIOSEO 4.x

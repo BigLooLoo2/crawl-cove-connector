@@ -136,4 +136,59 @@ class AdapterTest extends TestCase {
 		$a->set_title( 7, 'New title' );
 		$this->assertArrayNotHasKey( 7, $GLOBALS['cc_meta'] );
 	}
+
+	// ── homepage (HOME_ID = 0) ────────────────────────────────────
+
+	public function test_supports_home_only_for_yoast_and_rankmath() {
+		$this->assertTrue( ( new CCC_Adapter( 'yoast', 'a', 'b' ) )->supports_home() );
+		$this->assertTrue( ( new CCC_Adapter( 'rankmath', 'a', 'b' ) )->supports_home() );
+		$this->assertFalse( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_home() );
+		$this->assertFalse( ( new CCC_Adapter( 'aioseo', 'a', 'b' ) )->supports_home() );
+	}
+
+	public function test_only_rankmath_disallows_clearing_the_home_title() {
+		$this->assertTrue( ( new CCC_Adapter( 'yoast', 'a', 'b' ) )->can_clear_home_title() );
+		$this->assertFalse( ( new CCC_Adapter( 'rankmath', 'a', 'b' ) )->can_clear_home_title() );
+	}
+
+	public function test_yoast_home_title_writes_through_wpseo_titles_option() {
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$a->set_title( 0, 'New home title' );
+		$a->set_description( 0, 'New home desc' );
+		$this->assertSame( 'New home title', $a->get_title( 0 ) );
+		$this->assertSame( 'New home desc', $a->get_description( 0 ) );
+		$this->assertSame( 'New home title', $GLOBALS['cc_options']['wpseo_titles']['title-home-wpseo'] );
+		// The whole option round-trips through the same read-modify-write
+		// helper: other keys already in wpseo_titles must survive untouched.
+		$this->assertArrayNotHasKey( 7, $GLOBALS['cc_meta'] );
+	}
+
+	public function test_yoast_home_write_preserves_unrelated_option_keys() {
+		$GLOBALS['cc_options']['wpseo_titles'] = array( 'title-author-wpseo' => 'keep me' );
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$a->set_title( 0, 'New home title' );
+		$this->assertSame( 'keep me', $GLOBALS['cc_options']['wpseo_titles']['title-author-wpseo'] );
+	}
+
+	public function test_rankmath_home_title_writes_through_titles_option() {
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( 0, 'New home title' );
+		$a->set_description( 0, 'New home desc' );
+		$this->assertSame( 'New home title', $a->get_title( 0 ) );
+		$this->assertSame( 'New home desc', $a->get_description( 0 ) );
+		$this->assertSame( 'New home title', $GLOBALS['cc_options']['rank-math-options-titles']['homepage_title'] );
+	}
+
+	public function test_rankmath_home_write_preserves_unrelated_option_keys() {
+		$GLOBALS['cc_options']['rank-math-options-titles'] = array( 'homepage_robots' => array( 'index' ) );
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( 0, 'New home title' );
+		$this->assertSame( array( 'index' ), $GLOBALS['cc_options']['rank-math-options-titles']['homepage_robots'] );
+	}
+
+	public function test_unsupported_adapters_return_empty_home_values() {
+		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$this->assertSame( '', $a->get_title( 0 ) );
+		$this->assertSame( '', $a->get_description( 0 ) );
+	}
 }

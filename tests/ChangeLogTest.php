@@ -66,4 +66,14 @@ class ChangeLogTest extends TestCase {
 		$err   = CCC_Change_Log::revert( $entry['id'], $this->adapter );
 		$this->assertSame( 'ccc_post_gone', $err->get_error_code() );
 	}
+
+	public function test_revert_of_a_homepage_change_is_not_blocked_as_post_gone() {
+		// post_id 0 (the homepage) has no post row — must not be treated
+		// as "the post this change belongs to no longer exists".
+		$this->adapter->set_title( 0, 'Pushed home title' );
+		$entry = CCC_Change_Log::record( CCC_Service::HOME_ID, 'title', 'Original home title', 'Pushed home title', 'bloo' );
+
+		$this->assertTrue( CCC_Change_Log::revert( $entry['id'], $this->adapter ) );
+		$this->assertSame( 'Original home title', $this->adapter->get_title( 0 ) );
+	}
 }

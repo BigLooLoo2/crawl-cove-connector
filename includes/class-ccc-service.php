@@ -18,10 +18,19 @@ class CCC_Service {
 	const MAX_BATCH           = 50;
 
 	/**
-	 * Resolve a URL on this site to a post id.
+	 * Sentinel post id meaning "the homepage", when the site has no static
+	 * front page (Settings -> Reading -> "Your latest posts"). A site with a
+	 * static front page has no need of this — that page's own real post id
+	 * already resolves and writes through the normal per-post path.
+	 */
+	const HOME_ID = 0;
+
+	/**
+	 * Resolve a URL on this site to a post id, or to HOME_ID for the
+	 * "your latest posts" homepage.
 	 *
 	 * @param string $url URL to resolve.
-	 * @return int|WP_Error Post id (> 0) or an error explaining why not.
+	 * @return int|WP_Error Post id (>= 0) or an error explaining why not.
 	 */
 	public static function resolve_url( $url ) {
 		if ( ! is_string( $url ) || '' === trim( $url ) ) {
@@ -37,6 +46,10 @@ class CCC_Service {
 				sprintf( __( 'URL is not on this site (%s) — check the site profile in Crawl Cove.', 'crawl-cove-connector' ), $site_host ),
 				array( 'status' => 400 )
 			);
+		}
+
+		if ( self::is_home_url( $url ) ) {
+			return self::HOME_ID;
 		}
 
 		$post_id = url_to_postid( $url );
@@ -57,18 +70,76 @@ class CCC_Service {
 	}
 
 	/**
-	 * Describe one post's current SEO values for the desktop app's diff view.
+	 * Whether a URL is this site's homepage, only when that homepage has no
+	 * static front page assigned (Settings -> Reading -> "Your latest
+	 * posts") — a static front page is just a normal page and is left to
+	 * resolve through url_to_postid() like any other post. The caller has
+	 * already confirmed the host matches this site.
 	 *
-	 * @param int         $post_id Post id.
+	 * A URL with any query string is never the homepage, even if its path
+	 * matches — the "Plain" permalink structure addresses individual posts
+	 * as "/?p=N" and "/?page_id=N", so stripping the query string first
+	 * would make a specific post indistinguishable from the homepage (this
+	 * was a real bug: `/?p=999` was misread as the homepage before this
+	 * check was added). Scheme (http/https) is intentionally not compared.
+	 *
+	 * @param string $url URL already confirmed to be on this site.
+	 * @return bool
+	 */
+	private static function is_home_url( $url ) {
+		if ( 'page' === get_option( 'show_on_front' ) ) {
+			return false;
+		}
+		if ( '' !== (string) wp_parse_url( $url, PHP_URL_QUERY ) ) {
+			return false;
+		}
+		$url_path  = untrailingslashit( (string) wp_parse_url( $url, PHP_URL_PATH ) );
+		$home_path = untrailingslashit( (string) wp_parse_url( home_url(), PHP_URL_PATH ) );
+		return $url_path === $home_path;
+	}
+
+	/**
+	 * Whether the current user may edit the given target — a real post, or
+	 * the homepage (which has no post to check `edit_post` against, so
+	 * `manage_options` — the capability Settings -> Reading requires — is
+	 * used instead).
+	 *
+	 * @param int $post_id Post id, or HOME_ID.
+	 * @return bool
+	 */
+	public static function can_edit_target( $post_id ) {
+		if ( self::HOME_ID === $post_id ) {
+			return current_user_can( 'manage_options' );
+		}
+		return current_user_can( 'edit_post', $post_id );
+	}
+
+	/**
+	 * Describe one target's current SEO values for the desktop app's diff
+	 * view — a real post, or the homepage (HOME_ID).
+	 *
+	 * @param int         $post_id Post id, or HOME_ID.
 	 * @param CCC_Adapter $adapter Active SEO adapter to read current values from.
 	 * @return array
 	 */
 	public static function describe( $post_id, CCC_Adapter $adapter ) {
+		if ( self::HOME_ID === $post_id ) {
+			return array(
+				'post_id'    => self::HOME_ID,
+				'post_title' => __( 'Homepage (latest posts)', 'crawl-cove-connector' ),
+				'permalink'  => home_url( '/' ),
+				'editable'   => self::can_edit_target( $post_id ) && $adapter->supports_home(),
+				'current'    => array(
+					'title'       => $adapter->get_title( $post_id ),
+					'description' => $adapter->get_description( $post_id ),
+				),
+			);
+		}
 		return array(
 			'post_id'    => (int) $post_id,
 			'post_title' => get_the_title( $post_id ),
 			'permalink'  => get_permalink( $post_id ),
-			'editable'   => current_user_can( 'edit_post', $post_id ),
+			'editable'   => self::can_edit_target( $post_id ),
 			'current'    => array(
 				'title'       => $adapter->get_title( $post_id ),
 				'description' => $adapter->get_description( $post_id ),
@@ -90,9 +161,13 @@ class CCC_Service {
 			return new WP_Error( 'ccc_bad_change', __( 'Each change must be an object.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
 		}
 
-		if ( isset( $item['post_id'] ) && (int) $item['post_id'] > 0 ) {
+		if ( array_key_exists( 'post_id', $item ) && is_numeric( $item['post_id'] ) && (int) $item['post_id'] >= 0 ) {
 			$post_id = (int) $item['post_id'];
-			if ( ! get_post( $post_id ) ) {
+			if ( self::HOME_ID === $post_id ) {
+				if ( 'page' === get_option( 'show_on_front' ) ) {
+					return new WP_Error( 'ccc_no_homepage_target', __( 'This site has a static front page — pass that page\'s own post_id instead of 0.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
+				}
+			} elseif ( ! get_post( $post_id ) ) {
 				return new WP_Error( 'ccc_no_post', __( 'No post with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
 			}
 		} elseif ( isset( $item['url'] ) ) {
@@ -177,18 +252,38 @@ class CCC_Service {
 			}
 
 			$post_id = $valid['post_id'];
-			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			if ( self::HOME_ID === $post_id && ! $adapter->supports_home() ) {
+				$results[] = array(
+					'index'   => $i,
+					'ok'      => false,
+					'error'   => 'ccc_home_unsupported',
+					/* translators: %s: active SEO plugin's display name */
+					'message' => sprintf( __( '%s does not support homepage title/description changes yet.', 'crawl-cove-connector' ), $adapter->label() ),
+				);
+				continue;
+			}
+			if ( ! self::can_edit_target( $post_id ) ) {
 				$results[] = array(
 					'index'   => $i,
 					'ok'      => false,
 					'error'   => 'ccc_forbidden',
-					'message' => __( 'This user may not edit that post.', 'crawl-cove-connector' ),
+					'message' => __( 'This user may not edit that target.', 'crawl-cove-connector' ),
 				);
 				continue;
 			}
 
 			$applied = array();
 			foreach ( $valid['fields'] as $field => $to ) {
+				if ( self::HOME_ID === $post_id && 'title' === $field && '' === $to && ! $adapter->can_clear_home_title() ) {
+					$applied[ $field ] = array(
+						'from'    => $adapter->get_title( $post_id ),
+						'to'      => '',
+						'changed' => false,
+						'error'   => 'ccc_home_title_clear_unsupported',
+						'message' => __( "This SEO plugin's homepage title has no automatic fallback — clearing it would leave a blank browser-tab title. Set a new title instead, or clear it from the SEO plugin's own settings directly.", 'crawl-cove-connector' ),
+					);
+					continue;
+				}
 				$from = ( 'title' === $field ) ? $adapter->get_title( $post_id ) : $adapter->get_description( $post_id );
 				$step = array(
 					'from'    => $from,
@@ -201,9 +296,11 @@ class CCC_Service {
 					} else {
 						$adapter->set_description( $post_id, $to );
 					}
-					$entry                     = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
-					$step['change_id']         = $entry['id'];
-					$touched_posts[ $post_id ] = true;
+					$entry             = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
+					$step['change_id'] = $entry['id'];
+					if ( self::HOME_ID !== $post_id ) {
+						$touched_posts[ $post_id ] = true;
+					}
 				}
 				$applied[ $field ] = $step;
 			}

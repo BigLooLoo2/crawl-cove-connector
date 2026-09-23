@@ -16,6 +16,7 @@ function cc_reset_wp() {
 	$GLOBALS['cc_saved']   = array(); // wp_update_post calls
 	$GLOBALS['cc_home']    = 'https://example.com';
 	$GLOBALS['cc_aioseo']  = array(); // post_id => ['title' => ..., 'description' => ...]
+	$GLOBALS['cc_deny_manage_options'] = false;
 }
 cc_reset_wp();
 
@@ -71,8 +72,9 @@ function wp_update_post( $args ) {
 	return $args['ID'];
 }
 
-function home_url() { return $GLOBALS['cc_home']; }
+function home_url( $path = '' ) { return rtrim( $GLOBALS['cc_home'], '/' ) . $path; }
 function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
+function untrailingslashit( $str ) { return rtrim( (string) $str, '/' ); }
 function url_to_postid( $url ) {
 	return isset( $GLOBALS['cc_urls'][ $url ] ) ? $GLOBALS['cc_urls'][ $url ] : 0;
 }
@@ -80,6 +82,9 @@ function url_to_postid( $url ) {
 function current_user_can( $cap, $post_id = null ) {
 	if ( 'edit_post' === $cap ) {
 		return ! in_array( (int) $post_id, $GLOBALS['cc_deny'], true );
+	}
+	if ( 'manage_options' === $cap ) {
+		return empty( $GLOBALS['cc_deny_manage_options'] );
 	}
 	return true;
 }
@@ -132,6 +137,28 @@ class CC_Test_Aioseo_Post {
 	}
 }
 class_alias( 'CC_Test_Aioseo_Post', 'AIOSEO\\Plugin\\Common\\Models\\Post' );
+
+/**
+ * Minimal stand-in for Yoast's \WPSEO_Options, shaped like the real
+ * get()/save_option() (read-modify-write onto the named option array, via
+ * the same get_option()/update_option() stubs above) so CCC_Adapter's
+ * homepage-title code path is unit-testable without the real plugin
+ * installed. Real-plugin behaviour (indexable rebuild watcher, the
+ * empty-falls-back-to-template render) is proven in tests/integration/.
+ */
+class WPSEO_Options {
+	public static function get( $key, $default = null ) {
+		$opts = get_option( 'wpseo_titles', array() );
+		return array_key_exists( $key, $opts ) ? $opts[ $key ] : $default;
+	}
+
+	public static function save_option( $group, $key, $value ) {
+		$opts         = get_option( $group, array() );
+		$opts[ $key ] = $value;
+		update_option( $group, $opts );
+		return true;
+	}
+}
 
 require __DIR__ . '/../includes/class-ccc-adapter.php';
 require __DIR__ . '/../includes/class-ccc-change-log.php';

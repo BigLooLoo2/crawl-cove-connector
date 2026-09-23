@@ -213,8 +213,8 @@ class CCC_Rest {
 
 		$change_id = (int) $request->get_param( 'change_id' );
 		$entry     = CCC_Change_Log::find( $change_id );
-		if ( $entry && ! current_user_can( 'edit_post', $entry['post_id'] ) ) {
-			return new WP_Error( 'ccc_forbidden', __( 'This user may not edit that post.', 'crawl-cove-connector' ), array( 'status' => 403 ) );
+		if ( $entry && ! CCC_Service::can_edit_target( $entry['post_id'] ) ) {
+			return new WP_Error( 'ccc_forbidden', __( 'This user may not edit that target.', 'crawl-cove-connector' ), array( 'status' => 403 ) );
 		}
 
 		$done = CCC_Change_Log::revert( $change_id, $adapter );

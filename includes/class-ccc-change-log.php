@@ -95,7 +95,8 @@ class CCC_Change_Log {
 		if ( ! empty( $entry['reverted'] ) ) {
 			return new WP_Error( 'ccc_already_reverted', __( 'That change has already been reverted.', 'crawl-cove-connector' ), array( 'status' => 409 ) );
 		}
-		if ( ! get_post( $entry['post_id'] ) ) {
+		// The homepage (post_id 0) always "exists" — it has no post to check.
+		if ( CCC_Service::HOME_ID !== (int) $entry['post_id'] && ! get_post( $entry['post_id'] ) ) {
 			return new WP_Error( 'ccc_post_gone', __( 'The post this change belongs to no longer exists.', 'crawl-cove-connector' ), array( 'status' => 410 ) );
 		}
 

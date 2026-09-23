@@ -138,11 +138,15 @@ class CCC_Admin {
 						<tr>
 							<td><?php echo esc_html( wp_date( 'Y-m-d H:i', (int) $e['time'] ) ); ?></td>
 							<td>
-								<?php $edit = get_edit_post_link( $e['post_id'] ); ?>
-								<?php if ( $edit ) : ?>
-									<a href="<?php echo esc_url( $edit ); ?>"><?php echo esc_html( get_the_title( $e['post_id'] ) ); ?></a>
+								<?php if ( CCC_Service::HOME_ID === (int) $e['post_id'] ) : ?>
+									<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Homepage', 'crawl-cove-connector' ); ?></a>
 								<?php else : ?>
-									#<?php echo (int) $e['post_id']; ?>
+									<?php $edit = get_edit_post_link( $e['post_id'] ); ?>
+									<?php if ( $edit ) : ?>
+										<a href="<?php echo esc_url( $edit ); ?>"><?php echo esc_html( get_the_title( $e['post_id'] ) ); ?></a>
+									<?php else : ?>
+										#<?php echo (int) $e['post_id']; ?>
+									<?php endif; ?>
 								<?php endif; ?>
 							</td>
 							<td><?php echo esc_html( $e['field'] ); ?></td>

@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.4.0 =
+* Homepage title/description support for sites with no static front page set (Settings → Reading → "Your latest posts") — Yoast and Rank Math only for now; SEOPress and AIOSEO report the change as unsupported rather than silently doing nothing. A site with a static front page needs no change; that page's own title/description already worked exactly like any other page.
+* Rank Math's homepage title cannot be cleared to an empty value (verified against real Rank Math source: unlike every other field this plugin writes, it has no template fallback at render time, so clearing it would leave a genuinely blank browser-tab title) — set a new title instead, or clear it from Rank Math's own settings.
 
 = 0.3.0 =
 * AIOSEO adapter: title/description live in a custom DB table for this plugin (not postmeta like the other three), written through AIOSEO's own `Post::savePost()` model method — verified against AIOSEO 4.9 source that this only touches the columns given, and confirmed against a real install that it doesn't reset a post's other AIOSEO settings (social titles, etc).

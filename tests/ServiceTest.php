@@ -47,6 +47,25 @@ class ServiceTest extends TestCase {
 		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
 	}
 
+	public function test_resolve_root_url_is_the_homepage_when_no_static_front_page() {
+		$this->assertSame( CCC_Service::HOME_ID, CCC_Service::resolve_url( 'https://example.com/' ) );
+		$this->assertSame( CCC_Service::HOME_ID, CCC_Service::resolve_url( 'https://example.com' ) );
+	}
+
+	public function test_resolve_root_url_is_not_the_homepage_with_a_static_front_page() {
+		$GLOBALS['cc_options']['show_on_front'] = 'page';
+		cc_add_post( 3, 'https://example.com/' );
+		$this->assertSame( 3, CCC_Service::resolve_url( 'https://example.com/' ) );
+	}
+
+	public function test_resolve_root_url_with_a_query_string_is_not_the_homepage() {
+		// A "Plain" permalink post at the site root, e.g. "/?p=5" — must
+		// resolve as that post, not be swallowed by the homepage match.
+		$GLOBALS['cc_urls']['https://example.com/?p=5'] = 9;
+		cc_add_post( 9, 'https://example.com/?p=5' );
+		$this->assertSame( 9, CCC_Service::resolve_url( 'https://example.com/?p=5' ) );
+	}
+
 	// ── validate_change ────────────────────────────────────────────
 
 	public function test_validate_needs_a_target_and_a_field() {
@@ -70,6 +89,23 @@ class ServiceTest extends TestCase {
 	public function test_validate_resolves_url_targets() {
 		$valid = CCC_Service::validate_change( array( 'url' => 'https://example.com/world', 'description' => 'D' ) );
 		$this->assertSame( 8, $valid['post_id'] );
+	}
+
+	public function test_validate_accepts_explicit_post_id_zero_as_the_homepage() {
+		$valid = CCC_Service::validate_change( array( 'post_id' => 0, 'title' => 'Home title' ) );
+		$this->assertSame( CCC_Service::HOME_ID, $valid['post_id'] );
+	}
+
+	public function test_validate_rejects_post_id_zero_with_a_static_front_page() {
+		$GLOBALS['cc_options']['show_on_front'] = 'page';
+		$err = CCC_Service::validate_change( array( 'post_id' => 0, 'title' => 'X' ) );
+		$this->assertSame( 'ccc_no_homepage_target', $err->get_error_code() );
+	}
+
+	public function test_validate_rejects_non_numeric_post_id_rather_than_treating_it_as_home() {
+		// (int) 'abc' === 0 in PHP — must not silently become the homepage.
+		$err = CCC_Service::validate_change( array( 'post_id' => 'abc', 'title' => 'X' ) );
+		$this->assertSame( 'ccc_no_target', $err->get_error_code() );
 	}
 
 	// ── apply ──────────────────────────────────────────────────────
@@ -164,5 +200,90 @@ class ServiceTest extends TestCase {
 
 		CCC_Change_Log::revert( $res[0]['applied']['description']['change_id'], $this->adapter );
 		$this->assertSame( 'Bad copy', $this->adapter->get_description( 7 ) );
+	}
+
+	// ── homepage (HOME_ID = 0) ────────────────────────────────────
+
+	public function test_apply_writes_the_homepage_title_and_does_not_resave_a_post() {
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 0, 'title' => 'New home title' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertSame( 'New home title', $this->adapter->get_title( 0 ) );
+		$this->assertArrayHasKey( 'change_id', $res[0]['applied']['title'] );
+		// Yoast's own wpseo_titles watcher rebuilds the home indexable on the
+		// option write itself; wp_update_post( ['ID' => 0] ) must never run —
+		// WordPress core treats ID 0 as "insert a new post", not "no-op".
+		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+	}
+
+	public function test_apply_rejects_homepage_changes_for_an_adapter_without_home_support() {
+		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$res      = CCC_Service::apply(
+			array( array( 'post_id' => 0, 'title' => 'New home title' ) ),
+			false, $seopress, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_home_unsupported', $res[0]['error'] );
+	}
+
+	public function test_apply_blocks_clearing_the_rankmath_home_title_but_allows_description() {
+		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$rankmath->set_title( 0, 'Existing home title' );
+		$rankmath->set_description( 0, 'Existing home description' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 0, 'title' => '', 'description' => '' ) ),
+			false, $rankmath, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertSame( 'ccc_home_title_clear_unsupported', $res[0]['applied']['title']['error'] );
+		$this->assertSame( 'Existing home title', $rankmath->get_title( 0 ), 'blocked field must not be written' );
+		$this->assertArrayNotHasKey( 'error', $res[0]['applied']['description'] );
+		$this->assertTrue( $res[0]['applied']['description']['changed'] );
+	}
+
+	public function test_apply_enforces_manage_options_for_the_homepage_not_edit_post() {
+		$GLOBALS['cc_deny_manage_options'] = true;
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 0, 'title' => 'X' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_forbidden', $res[0]['error'] );
+	}
+
+	public function test_homepage_change_is_revertable() {
+		$this->adapter->set_title( 0, 'Old home title' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 0, 'title' => 'New home title' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$done = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $this->adapter );
+		$this->assertTrue( $done );
+		$this->assertSame( 'Old home title', $this->adapter->get_title( 0 ) );
+	}
+
+	public function test_describe_homepage_target() {
+		$this->adapter->set_title( 0, 'Home title' );
+		$d = CCC_Service::describe( CCC_Service::HOME_ID, $this->adapter );
+		$this->assertSame( 0, $d['post_id'] );
+		$this->assertSame( 'https://example.com/', $d['permalink'] );
+		$this->assertTrue( $d['editable'] );
+		$this->assertSame( 'Home title', $d['current']['title'] );
+	}
+
+	public function test_describe_homepage_not_editable_when_adapter_lacks_support() {
+		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$d        = CCC_Service::describe( CCC_Service::HOME_ID, $seopress );
+		$this->assertFalse( $d['editable'] );
+	}
+
+	public function test_can_edit_target_uses_manage_options_for_the_homepage() {
+		$this->assertTrue( CCC_Service::can_edit_target( CCC_Service::HOME_ID ) );
+		$GLOBALS['cc_deny_manage_options'] = true;
+		$this->assertFalse( CCC_Service::can_edit_target( CCC_Service::HOME_ID ) );
+		// Unaffected: post-level checks still key off edit_post, not manage_options.
+		$this->assertTrue( CCC_Service::can_edit_target( 7 ) );
 	}
 }
