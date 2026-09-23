@@ -169,16 +169,24 @@ class CCC_Adapter {
 
 	/**
 	 * Whether this adapter can read/write the homepage title/description at
-	 * all. True only for Yoast and Rank Math — verified against real plugin
-	 * source (23 Sept 2026): both store a "your latest posts" homepage's
-	 * title/description in a plugin options array (not postmeta), read via a
-	 * safe read-modify-write helper. SEOPress and AIOSEO's equivalents are
-	 * unresearched; report unsupported rather than guess.
+	 * all. True for Yoast, Rank Math and SEOPress — verified against real
+	 * plugin source (23 Sept 2026): all three store a "your latest posts"
+	 * homepage's title/description in a dedicated options-array field (not
+	 * postmeta), read via a safe read-modify-write path. AIOSEO is the one
+	 * genuine "no" here, not just unresearched: its `getHomePageTitle()`/
+	 * `getHomePageDescription()` (app/Common/Meta/Title.php,
+	 * app/Common/Meta/Description.php) fall back, for a "your latest posts"
+	 * site, to `searchAppearance.global.siteTitle`/`.metaDescription` — the
+	 * SAME site-wide template used to fill the `#site_title`/`#tagline`
+	 * variables in every OTHER page's title/description template. Writing
+	 * to it to "fix the homepage" would silently change title generation
+	 * across the whole site, not just "/" — a real corruption risk, so
+	 * AIOSEO homepage writes are refused, not attempted.
 	 *
 	 * @return bool
 	 */
 	public function supports_home() {
-		return in_array( $this->id, array( 'yoast', 'rankmath' ), true );
+		return in_array( $this->id, array( 'yoast', 'rankmath', 'seopress' ), true );
 	}
 
 	/**
@@ -197,6 +205,12 @@ class CCC_Adapter {
 	 *   homepage DESCRIPTION is unaffected: `Blog::description()` passes
 	 *   `get_bloginfo( 'description' )` as its fallback, so clearing it is
 	 *   safe.
+	 * - SEOPress: its title/description generator uses a specification
+	 *   chain (`LatestPostsSpecification::isSatisfyBy()`) that explicitly
+	 *   returns false — "I don't apply" — whenever the stored home title/
+	 *   description is empty, so an empty value correctly falls through to
+	 *   the next specification in the chain rather than rendering blank.
+	 *   Safe, same class as Yoast.
 	 *
 	 * @return bool
 	 */
@@ -220,6 +234,11 @@ class CCC_Adapter {
 		if ( 'rankmath' === $this->id ) {
 			$titles = (array) get_option( 'rank-math-options-titles', array() );
 			$key    = ( 'title' === $field ) ? 'homepage_title' : 'homepage_description';
+			return isset( $titles[ $key ] ) ? (string) $titles[ $key ] : '';
+		}
+		if ( 'seopress' === $this->id ) {
+			$titles = (array) get_option( 'seopress_titles_option_name', array() );
+			$key    = ( 'title' === $field ) ? 'seopress_titles_home_site_title' : 'seopress_titles_home_site_desc';
 			return isset( $titles[ $key ] ) ? (string) $titles[ $key ] : '';
 		}
 		return '';
@@ -260,6 +279,18 @@ class CCC_Adapter {
 					$rank_math->settings->reset();
 				}
 			}
+			return;
+		}
+		if ( 'seopress' === $this->id ) {
+			$key            = ( 'title' === $field ) ? 'seopress_titles_home_site_title' : 'seopress_titles_home_site_desc';
+			$titles         = (array) get_option( 'seopress_titles_option_name', array() );
+			$titles[ $key ] = $value;
+			// Same pattern SEOPress's own setup-wizard save handler uses
+			// (inc/admin/wizard/admin-wizard.php): read the whole option,
+			// patch this one key, write the whole array back — never a bare
+			// overwrite, which would wipe every other title/meta setting
+			// sharing this option (archive templates, separators, etc.).
+			update_option( 'seopress_titles_option_name', $titles );
 		}
 	}
 

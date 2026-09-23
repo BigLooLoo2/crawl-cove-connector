@@ -52,9 +52,12 @@ keep it in their own settings instead. `/resolve` reports the site root as
 post id, exactly like any other page — nothing changes there); pass `post_id: 0`
 back to `/apply` or `/revert` to target it.
 
-- **Supported adapters**: Yoast SEO and Rank Math only. SEOPress and AIOSEO
-  changes to `post_id: 0` fail with `ccc_home_unsupported` — the change is
-  reported, not silently dropped.
+- **Supported adapters**: Yoast SEO, Rank Math and SEOPress. AIOSEO changes to
+  `post_id: 0` fail with `ccc_home_unsupported` — the change is reported, not
+  silently dropped. AIOSEO isn't just unresearched: its "homepage" title and
+  description read the *same* site-wide template used to fill in every other
+  page's title/description, so writing to it to "fix the homepage" would
+  silently change titles across the whole site, not just `/`.
 - **Capability**: `manage_options`, not `edit_post` — there is no post to check
   `edit_post` against, and Settings → Reading (where this value lives natively)
   already requires it.

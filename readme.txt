@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.5.0 =
+* SEOPress homepage title/description support, extending the "your latest posts" homepage target from 0.4.0 to a third adapter. AIOSEO stays unsupported — its "homepage" title/description turned out to read the same site-wide template used on every other page, so writing to it would change titles across the whole site, not just the homepage.
 
 = 0.4.0 =
 * Homepage title/description support for sites with no static front page set (Settings → Reading → "Your latest posts") — Yoast and Rank Math only for now; SEOPress and AIOSEO report the change as unsupported rather than silently doing nothing. A site with a static front page needs no change; that page's own title/description already worked exactly like any other page.

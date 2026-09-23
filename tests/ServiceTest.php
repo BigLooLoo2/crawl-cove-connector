@@ -219,10 +219,10 @@ class ServiceTest extends TestCase {
 	}
 
 	public function test_apply_rejects_homepage_changes_for_an_adapter_without_home_support() {
-		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
-		$res      = CCC_Service::apply(
+		$aioseo = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
+		$res    = CCC_Service::apply(
 			array( array( 'post_id' => 0, 'title' => 'New home title' ) ),
-			false, $seopress, 'bloo'
+			false, $aioseo, 'bloo'
 		);
 		$this->assertFalse( $res[0]['ok'] );
 		$this->assertSame( 'ccc_home_unsupported', $res[0]['error'] );
@@ -274,8 +274,8 @@ class ServiceTest extends TestCase {
 	}
 
 	public function test_describe_homepage_not_editable_when_adapter_lacks_support() {
-		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
-		$d        = CCC_Service::describe( CCC_Service::HOME_ID, $seopress );
+		$aioseo = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
+		$d      = CCC_Service::describe( CCC_Service::HOME_ID, $aioseo );
 		$this->assertFalse( $d['editable'] );
 	}
 

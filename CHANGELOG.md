@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.0 — 2026-09-23
+
+- SEOPress homepage title/description support, extending 0.4.0's
+  `post_id: 0` homepage target to a third adapter. Storage:
+  `seopress_titles_option_name` option's `seopress_titles_home_site_title` /
+  `seopress_titles_home_site_desc` keys, written through the same
+  read-whole-array-then-`update_option()` pattern SEOPress's own setup
+  wizard uses (`inc/admin/wizard/admin-wizard.php`). Confirmed safe to clear
+  to '': `LatestPostsSpecification::isSatisfyBy()` in SEOPress's own title/
+  description generator explicitly stops applying when the value is empty,
+  falling through to the next specification rather than rendering blank —
+  same safety class as Yoast, no `can_clear_home_title()` exception needed.
+- AIOSEO investigated properly this session and confirmed genuinely
+  unsupported, not just unresearched: `Meta\Title::getHomePageTitle()` and
+  `Meta\Description::getHomePageDescription()` (app/Common/Meta/) fall back,
+  for a "your latest posts" site, to
+  `searchAppearance.global.siteTitle`/`.metaDescription` — the *same*
+  site-wide template that fills the `#site_title`/`#tagline` variables used
+  in every other page's title/description template. AIOSEO has no dedicated
+  per-homepage field to write to; doing so would silently change title
+  generation across the whole site, not just `/`. `ccc_home_unsupported`
+  stays correct for AIOSEO, now for a verified reason.
+- 61 unit tests (+2), full 4-adapter integration suite (including
+  `tests/integration/homepage-checks.sh`) green, Plugin Check clean.
+
 ## 0.4.0 — 2026-09-23
 
 - Homepage title/description support for sites with **no static front page**

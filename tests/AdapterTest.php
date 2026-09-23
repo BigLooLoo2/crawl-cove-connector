@@ -139,10 +139,10 @@ class AdapterTest extends TestCase {
 
 	// ── homepage (HOME_ID = 0) ────────────────────────────────────
 
-	public function test_supports_home_only_for_yoast_and_rankmath() {
+	public function test_supports_home_for_yoast_rankmath_and_seopress_not_aioseo() {
 		$this->assertTrue( ( new CCC_Adapter( 'yoast', 'a', 'b' ) )->supports_home() );
 		$this->assertTrue( ( new CCC_Adapter( 'rankmath', 'a', 'b' ) )->supports_home() );
-		$this->assertFalse( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_home() );
+		$this->assertTrue( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_home() );
 		$this->assertFalse( ( new CCC_Adapter( 'aioseo', 'a', 'b' ) )->supports_home() );
 	}
 
@@ -186,8 +186,24 @@ class AdapterTest extends TestCase {
 		$this->assertSame( array( 'index' ), $GLOBALS['cc_options']['rank-math-options-titles']['homepage_robots'] );
 	}
 
-	public function test_unsupported_adapters_return_empty_home_values() {
+	public function test_seopress_home_title_writes_through_titles_option() {
 		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$a->set_title( 0, 'New home title' );
+		$a->set_description( 0, 'New home desc' );
+		$this->assertSame( 'New home title', $a->get_title( 0 ) );
+		$this->assertSame( 'New home desc', $a->get_description( 0 ) );
+		$this->assertSame( 'New home title', $GLOBALS['cc_options']['seopress_titles_option_name']['seopress_titles_home_site_title'] );
+	}
+
+	public function test_seopress_home_write_preserves_unrelated_option_keys() {
+		$GLOBALS['cc_options']['seopress_titles_option_name'] = array( 'seopress_titles_sep' => '-' );
+		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$a->set_title( 0, 'New home title' );
+		$this->assertSame( '-', $GLOBALS['cc_options']['seopress_titles_option_name']['seopress_titles_sep'] );
+	}
+
+	public function test_unsupported_adapter_returns_empty_home_values() {
+		$a = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
 		$this->assertSame( '', $a->get_title( 0 ) );
 		$this->assertSame( '', $a->get_description( 0 ) );
 	}
