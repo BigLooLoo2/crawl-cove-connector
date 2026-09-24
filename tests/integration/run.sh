@@ -160,6 +160,10 @@ log "running homepage ('your latest posts') checks"
 bash "$HERE/homepage-checks.sh"
 HOMEPAGE_STATUS=$?
 
+log "running taxonomy term (category/tag archive) checks"
+bash "$HERE/taxonomy-checks.sh"
+TAXONOMY_STATUS=$?
+
 AIOSEO_STATUS=0
 if [[ "$ADAPTER" == "aioseo" ]]; then
   log "running AIOSEO corruption regression check (patch-safety of Post::savePost)"
@@ -168,7 +172,7 @@ if [[ "$ADAPTER" == "aioseo" ]]; then
 fi
 
 STATUS=0
-[[ $CHECKS_STATUS -ne 0 || $SECURITY_STATUS -ne 0 || $HOMEPAGE_STATUS -ne 0 || $AIOSEO_STATUS -ne 0 ]] && STATUS=1
+[[ $CHECKS_STATUS -ne 0 || $SECURITY_STATUS -ne 0 || $HOMEPAGE_STATUS -ne 0 || $TAXONOMY_STATUS -ne 0 || $AIOSEO_STATUS -ne 0 ]] && STATUS=1
 
 if [[ $STATUS -eq 0 ]]; then
   log "ALL CHECKS PASSED (route checks + security pass)"

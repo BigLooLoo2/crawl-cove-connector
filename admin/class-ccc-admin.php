@@ -140,6 +140,18 @@ class CCC_Admin {
 							<td>
 								<?php if ( CCC_Service::HOME_ID === (int) $e['post_id'] ) : ?>
 									<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Homepage', 'crawl-cove-connector' ); ?></a>
+								<?php elseif ( (int) $e['post_id'] < 0 ) : ?>
+									<?php
+									$term      = get_term( - (int) $e['post_id'] );
+									$term_edit = ( $term && ! is_wp_error( $term ) ) ? get_edit_term_link( $term ) : '';
+									?>
+									<?php if ( $term && ! is_wp_error( $term ) && $term_edit ) : ?>
+										<a href="<?php echo esc_url( $term_edit ); ?>"><?php echo esc_html( $term->name ); ?></a>
+									<?php elseif ( $term && ! is_wp_error( $term ) ) : ?>
+										<?php echo esc_html( $term->name ); ?>
+									<?php else : ?>
+										#<?php echo (int) $e['post_id']; ?>
+									<?php endif; ?>
 								<?php else : ?>
 									<?php $edit = get_edit_post_link( $e['post_id'] ); ?>
 									<?php if ( $edit ) : ?>

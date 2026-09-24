@@ -286,4 +286,132 @@ class ServiceTest extends TestCase {
 		// Unaffected: post-level checks still key off edit_post, not manage_options.
 		$this->assertTrue( CCC_Service::can_edit_target( 7 ) );
 	}
+
+	// ── taxonomy terms (negative post_id sentinel) ─────────────────
+
+	public function test_resolve_falls_back_to_term_resolution_after_post_lookup_fails() {
+		cc_add_term( 5, 'category', 'News', 'https://example.com/category/news/' );
+		$this->assertSame( -5, CCC_Service::resolve_url( 'https://example.com/category/news/' ) );
+	}
+
+	public function test_resolve_prefers_a_real_post_match_over_a_term_match() {
+		// url_to_postid() is checked first; only its miss falls through to
+		// term resolution — a URL that resolves as a post never reaches the
+		// term resolver at all.
+		cc_add_post( 7, 'https://example.com/hello' );
+		$this->assertSame( 7, CCC_Service::resolve_url( 'https://example.com/hello' ) );
+	}
+
+	public function test_resolve_term_url_for_a_term_that_no_longer_exists_is_unresolvable() {
+		// CCC_Term_Resolver "matched" a term id, but CCC_Service re-verifies
+		// it with get_term() before trusting it — belt and suspenders against
+		// a resolver returning a stale/deleted term id.
+		$GLOBALS['cc_term_urls']['https://example.com/category/gone/'] = 999;
+		$err = CCC_Service::resolve_url( 'https://example.com/category/gone/' );
+		$this->assertSame( 'ccc_unresolvable', $err->get_error_code() );
+	}
+
+	public function test_validate_accepts_explicit_negative_post_id_as_a_term() {
+		cc_add_term( 5, 'category', 'News' );
+		$valid = CCC_Service::validate_change( array( 'post_id' => -5, 'title' => 'X' ) );
+		$this->assertSame( -5, $valid['post_id'] );
+	}
+
+	public function test_validate_rejects_a_term_id_with_no_such_term() {
+		$err = CCC_Service::validate_change( array( 'post_id' => -999, 'title' => 'X' ) );
+		$this->assertSame( 'ccc_no_term', $err->get_error_code() );
+	}
+
+	public function test_apply_writes_a_term_title_for_a_supporting_adapter() {
+		cc_add_term( 5, 'category', 'News' );
+		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$res      = CCC_Service::apply(
+			array( array( 'post_id' => -5, 'title' => 'New term title' ) ),
+			false, $rankmath, 'bloo'
+		);
+		$this->assertTrue( $res[0]['ok'] );
+		$this->assertSame( 'New term title', $rankmath->get_title( -5 ) );
+		$this->assertArrayHasKey( 'change_id', $res[0]['applied']['title'] );
+		// A term is not a post — must never trigger the Yoast-indexable
+		// re-save path (this is the exact class of bug wp_update_post(['ID'
+		// => 0]) was for the homepage; a negative "ID" would be nonsense to
+		// core entirely).
+		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+	}
+
+	public function test_apply_rejects_term_changes_for_an_adapter_without_term_support() {
+		cc_add_term( 5, 'category', 'News' );
+		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$res      = CCC_Service::apply(
+			array( array( 'post_id' => -5, 'title' => 'X' ) ),
+			false, $seopress, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_term_unsupported', $res[0]['error'] );
+	}
+
+	public function test_apply_enforces_edit_term_capability() {
+		cc_add_term( 5, 'category', 'News' );
+		$GLOBALS['cc_deny_terms'] = array( 5 );
+		$rankmath                 = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$res                      = CCC_Service::apply(
+			array( array( 'post_id' => -5, 'title' => 'X' ) ),
+			false, $rankmath, 'bloo'
+		);
+		$this->assertFalse( $res[0]['ok'] );
+		$this->assertSame( 'ccc_forbidden', $res[0]['error'] );
+	}
+
+	public function test_term_change_is_revertable() {
+		cc_add_term( 5, 'category', 'News' );
+		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$rankmath->set_title( -5, 'Old term title' );
+		$res  = CCC_Service::apply(
+			array( array( 'post_id' => -5, 'title' => 'New term title' ) ),
+			false, $rankmath, 'bloo'
+		);
+		$done = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $rankmath );
+		$this->assertTrue( $done );
+		$this->assertSame( 'Old term title', $rankmath->get_title( -5 ) );
+	}
+
+	public function test_revert_fails_when_the_term_no_longer_exists() {
+		cc_add_term( 5, 'category', 'News' );
+		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$res      = CCC_Service::apply(
+			array( array( 'post_id' => -5, 'title' => 'New term title' ) ),
+			false, $rankmath, 'bloo'
+		);
+		unset( $GLOBALS['cc_terms'][5] );
+		$err = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $rankmath );
+		$this->assertSame( 'ccc_term_gone', $err->get_error_code() );
+	}
+
+	public function test_describe_term_target() {
+		cc_add_term( 5, 'category', 'News', null, 'https://example.com/category/news/' );
+		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$rankmath->set_title( -5, 'Term title' );
+		$d = CCC_Service::describe( -5, $rankmath );
+		$this->assertSame( -5, $d['post_id'] );
+		$this->assertSame( 'News', $d['post_title'] );
+		$this->assertSame( 'https://example.com/category/news/', $d['permalink'] );
+		$this->assertTrue( $d['editable'] );
+		$this->assertSame( 'Term title', $d['current']['title'] );
+	}
+
+	public function test_describe_term_not_editable_when_adapter_lacks_support() {
+		cc_add_term( 5, 'category', 'News' );
+		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$d        = CCC_Service::describe( -5, $seopress );
+		$this->assertFalse( $d['editable'] );
+	}
+
+	public function test_can_edit_target_uses_edit_term_for_terms() {
+		cc_add_term( 5, 'category', 'News' );
+		$this->assertTrue( CCC_Service::can_edit_target( -5 ) );
+		$GLOBALS['cc_deny_terms'] = array( 5 );
+		$this->assertFalse( CCC_Service::can_edit_target( -5 ) );
+		// Unaffected: post-level checks still key off edit_post.
+		$this->assertTrue( CCC_Service::can_edit_target( 7 ) );
+	}
 }

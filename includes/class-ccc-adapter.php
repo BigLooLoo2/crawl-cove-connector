@@ -109,6 +109,9 @@ class CCC_Adapter {
 		if ( 0 === $post_id ) {
 			return $this->get_home_field( 'title' );
 		}
+		if ( $post_id < 0 ) {
+			return $this->get_term_field( 'title', -$post_id );
+		}
 		if ( 'aioseo' === $this->id ) {
 			return (string) $this->aioseo_post( $post_id )->title;
 		}
@@ -124,6 +127,9 @@ class CCC_Adapter {
 	public function get_description( $post_id ) {
 		if ( 0 === $post_id ) {
 			return $this->get_home_field( 'description' );
+		}
+		if ( $post_id < 0 ) {
+			return $this->get_term_field( 'description', -$post_id );
 		}
 		if ( 'aioseo' === $this->id ) {
 			return (string) $this->aioseo_post( $post_id )->description;
@@ -142,6 +148,10 @@ class CCC_Adapter {
 			$this->set_home_field( 'title', $value );
 			return;
 		}
+		if ( $post_id < 0 ) {
+			$this->set_term_field( 'title', -$post_id, $value );
+			return;
+		}
 		if ( 'aioseo' === $this->id ) {
 			$this->aioseo_save( $post_id, 'title', $value );
 			return;
@@ -158,6 +168,10 @@ class CCC_Adapter {
 	public function set_description( $post_id, $value ) {
 		if ( 0 === $post_id ) {
 			$this->set_home_field( 'description', $value );
+			return;
+		}
+		if ( $post_id < 0 ) {
+			$this->set_term_field( 'description', -$post_id, $value );
 			return;
 		}
 		if ( 'aioseo' === $this->id ) {
@@ -187,6 +201,34 @@ class CCC_Adapter {
 	 */
 	public function supports_home() {
 		return in_array( $this->id, array( 'yoast', 'rankmath', 'seopress' ), true );
+	}
+
+	/**
+	 * Whether this adapter can read/write a taxonomy term's (category,
+	 * tag, custom taxonomy) archive title/description. True for Yoast
+	 * and Rank Math only — verified against real plugin source
+	 * (24 Sept 2026):
+	 * - Yoast stores per-term SEO data in ONE option,
+	 *   `wpseo_taxonomy_meta`, shaped `[taxonomy][term_id][wpseo_*]` —
+	 *   read via `WPSEO_Taxonomy_Meta::get_term_meta()`, written via its
+	 *   `set_value()` (a safe read-modify-write, same risk class as the
+	 *   homepage's `wpseo_titles` option).
+	 * - Rank Math uses real term meta (`rank_math_title`/
+	 *   `rank_math_description` via core's own `get_term_meta()`/
+	 *   `update_term_meta()`), the exact same key names it uses for
+	 *   posts, just against a term id instead of a post id — confirmed
+	 *   at `includes/frontend/paper/class-taxonomy.php` (reads via
+	 *   `Term::get_meta()`, which resolves to `get_term_meta( $id,
+	 *   'rank_math_title', true )`) and `includes/traits/class-meta.php`
+	 *   (writes via `update_term_meta()`/`delete_term_meta()`).
+	 * SEOPress and AIOSEO are unresearched for terms (same as the
+	 * homepage work originally was) — report `ccc_term_unsupported`
+	 * per-item rather than guessing at their storage.
+	 *
+	 * @return bool
+	 */
+	public function supports_term() {
+		return in_array( $this->id, array( 'yoast', 'rankmath' ), true );
 	}
 
 	/**
@@ -309,6 +351,104 @@ class CCC_Adapter {
 		} else {
 			update_post_meta( $post_id, $key, $value );
 		}
+	}
+
+	/**
+	 * Currently stored term title/description ('' = plugin default
+	 * template). Empty string for an adapter without term support
+	 * (caller must gate writes on supports_term() first) or a term id
+	 * whose taxonomy could not be determined.
+	 *
+	 * @param string $field   'title' or 'description'.
+	 * @param int    $term_id Term id (positive — the caller strips the
+	 *                        CCC_Service negative-sentinel sign first).
+	 * @return string
+	 */
+	private function get_term_field( $field, $term_id ) {
+		if ( 'yoast' === $this->id ) {
+			$taxonomy = $this->term_taxonomy( $term_id );
+			if ( '' === $taxonomy ) {
+				return '';
+			}
+			$meta  = ( 'title' === $field ) ? 'title' : 'desc';
+			$value = \WPSEO_Taxonomy_Meta::get_term_meta( $term_id, $taxonomy, $meta );
+			return false === $value ? '' : (string) $value;
+		}
+		if ( 'rankmath' === $this->id ) {
+			$key = ( 'title' === $field ) ? 'rank_math_title' : 'rank_math_description';
+			return (string) get_term_meta( $term_id, $key, true );
+		}
+		return '';
+	}
+
+	/**
+	 * Write a term's title/description through the active SEO plugin's own
+	 * storage.
+	 *
+	 * @param string $field   'title' or 'description'.
+	 * @param int    $term_id Term id (positive).
+	 * @param string $value   New value; '' removes the override.
+	 */
+	private function set_term_field( $field, $term_id, $value ) {
+		if ( 'yoast' === $this->id ) {
+			$taxonomy = $this->term_taxonomy( $term_id );
+			if ( '' === $taxonomy ) {
+				return;
+			}
+			// WPSEO_Taxonomy_Meta::set_value()/set_values() are NOT a true
+			// single-field patch, despite what the name and this method's
+			// own previous implementation assumed: validate_term_meta_data()
+			// only retains an old value for a specific allowlist (noindex,
+			// bctitle, canonical, keywordsynonyms, focuskeywords) — every
+			// OTHER field, including wpseo_title/wpseo_desc themselves,
+			// resets to its class default the instant it is absent from the
+			// $meta_values array passed in. Calling set_value() for just the
+			// ONE field being changed was found, against a real WordPress
+			// integration run, to silently wipe the OTHER of title/desc
+			// back to '' on the very next write — and would do the same to
+			// any other Yoast term setting (focus keyword, OG/Twitter
+			// overrides, cornerstone flag, ...) a site owner had already
+			// set by hand. Read the term's FULL current meta first
+			// (get_term_meta() with no $meta arg always returns every key,
+			// defaults merged in — confirmed at
+			// inc/options/class-wpseo-taxonomy-meta.php:558 in Yoast 28.6
+			// source) and pass it all back through set_values() so only
+			// this one key actually changes.
+			$meta_key             = 'wpseo_' . ( ( 'title' === $field ) ? 'title' : 'desc' );
+			$current              = \WPSEO_Taxonomy_Meta::get_term_meta( $term_id, $taxonomy );
+			$current              = is_array( $current ) ? $current : array();
+			$current[ $meta_key ] = $value;
+			\WPSEO_Taxonomy_Meta::set_values( $term_id, $taxonomy, $current );
+			return;
+		}
+		if ( 'rankmath' === $this->id ) {
+			$key = ( 'title' === $field ) ? 'rank_math_title' : 'rank_math_description';
+			if ( '' === $value ) {
+				delete_term_meta( $term_id, $key );
+			} else {
+				update_term_meta( $term_id, $key, $value );
+			}
+		}
+	}
+
+	/**
+	 * A term's taxonomy, needed by Yoast's per-term storage (keyed
+	 * `[taxonomy][term_id]`, unlike Rank Math's plain term meta which needs
+	 * no taxonomy to read/write). '' if the term id does not resolve to a
+	 * real, unambiguous term — `get_term()` itself returns a WP_Error for a
+	 * term id shared between multiple taxonomies (a pre-WP-4.3 leftover;
+	 * shared terms have been disallowed by default since), and callers
+	 * already treat '' the same as "unsupported here" for either reason.
+	 *
+	 * @param int $term_id Term id.
+	 * @return string
+	 */
+	private function term_taxonomy( $term_id ) {
+		$term = get_term( $term_id );
+		if ( ! $term || is_wp_error( $term ) ) {
+			return '';
+		}
+		return $term->taxonomy;
 	}
 
 	/**

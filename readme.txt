@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Crawl Cove Connector closes the loop between an SEO crawl and your CMS. Instead 
 * **You stay in control**: nothing is applied unless you approved it in the crawler, every change is logged with its previous value, and any change can be reverted with one click from Tools → Crawl Cove (or from the app).
 * **Dry-run mode** shows exactly what would change before anything is written.
 * Uses WordPress core **Application Passwords** for authentication — no extra accounts, no API keys stored by the plugin, revoke access any time from your profile.
-* Per-post capability checks: a connected user can only change posts they are allowed to edit.
+* Per-post (and per-term) capability checks: a connected user can only change posts, pages or taxonomy terms they are allowed to edit.
 
 The plugin is a small, auditable bridge (a few hundred lines, no external requests, no tracking, GPL). It exposes five REST routes under `crawlcove/v1`: status, resolve, apply, changes, revert.
 
@@ -48,6 +48,10 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.6.0 =
+* Taxonomy term title/description support: fix one category, tag or custom-taxonomy archive's title/description without affecting every other term in that taxonomy. Yoast and Rank Math only for now — SEOPress and AIOSEO report the change as unsupported rather than guessing at their storage.
+* Fix: writing a Yoast term title/description could silently reset that term's OTHER Yoast fields (focus keyword, Open Graph/Twitter overrides, cornerstone flag) back to default — Yoast's own `WPSEO_Taxonomy_Meta::set_value()` helper isn't a true single-field patch for most fields. Now reads the term's full current settings first and writes them all back with only the intended field changed.
 
 = 0.5.0 =
 * SEOPress homepage title/description support, extending the "your latest posts" homepage target from 0.4.0 to a third adapter. AIOSEO stays unsupported — its "homepage" title/description turned out to read the same site-wide template used on every other page, so writing to it would change titles across the whole site, not just the homepage.

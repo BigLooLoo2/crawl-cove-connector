@@ -37,7 +37,7 @@ The plugin registers a REST API under `crawlcove/v1` (auth: WordPress core Appli
 
 Safety model:
 
-- Nothing is written that wasn't sent by an authenticated user with `edit_post` capability for that specific post.
+- Nothing is written that wasn't sent by an authenticated user with the right capability for that specific target: `edit_post` for a post/page, `manage_options` for the homepage, `edit_term` for a taxonomy term.
 - Values are sanitized and length-capped; batches are capped at 50 changes.
 - Every write records the previous value; revert from the app or from **Tools → Crawl Cove**.
 - Empty string means "remove the override, fall back to the SEO plugin's template".
@@ -71,6 +71,40 @@ back to `/apply` or `/revert` to target it.
   title instead of clearing it, or clear it from Rank Math's own settings page.
 - Sending `post_id: 0` on a site that **does** have a static front page returns
   `ccc_no_homepage_target` — pass that page's own post id instead.
+
+### The taxonomy term target (a negative `post_id`)
+
+A category, tag or custom-taxonomy archive (e.g. `/category/news/`) has no
+post to hold a title/description override — Yoast and Rank Math each keep
+per-term SEO data in their own storage instead. `/resolve` reports a term
+archive URL as `post_id: -$term_id` (term ids are always positive, so a
+negative number is unambiguous and free to repurpose — the same trick
+`post_id: 0` already uses for the homepage); pass that same negative number
+back to `/apply` or `/revert` to target it.
+
+This is deliberately a **per-term** override, not the taxonomy's site-wide
+default title *template* (Settings the SEO plugin itself exposes, e.g.
+"Category archives" in Yoast's Search Appearance). A template change would
+affect every term in that taxonomy at once — wrong for a fix aimed at one
+crawled URL — so this plugin never touches it.
+
+- **Supported adapters**: Yoast SEO and Rank Math. SEOPress and AIOSEO
+  changes to a term fail with `ccc_term_unsupported` — the change is
+  reported, not silently dropped. Both are unresearched for terms (same
+  posture the homepage work originally had for all four adapters); a
+  future release may add them once their term storage is verified against
+  real source the same way Yoast's and Rank Math's was.
+- **Capability**: `edit_term`, WordPress core's own meta capability for
+  editing a specific term — there is no post to check `edit_post` against.
+  It maps through to the term's taxonomy (e.g. `manage_categories` for
+  `category`/`post_tag`; a custom taxonomy can register its own capability
+  type). Editor-role users have this by default; Author-role users do not.
+- Sending a negative `post_id` with no matching term returns `ccc_no_term`.
+- Unlike Rank Math's homepage title, clearing a term's title or description
+  to `''` is safe for both supported adapters — each falls back to the
+  taxonomy's own default title template, verified against real source
+  (Rank Math's `Paper\Taxonomy::title()`; Yoast's term-archive indexable
+  presentation follows the same pattern as its homepage description).
 
 See [SECURITY-NOTES.md](SECURITY-NOTES.md) for the full security pass (capability matrix, fuzzing, findings).
 

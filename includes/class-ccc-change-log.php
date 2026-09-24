@@ -96,8 +96,16 @@ class CCC_Change_Log {
 			return new WP_Error( 'ccc_already_reverted', __( 'That change has already been reverted.', 'crawl-cove-connector' ), array( 'status' => 409 ) );
 		}
 		// The homepage (post_id 0) always "exists" — it has no post to check.
-		if ( CCC_Service::HOME_ID !== (int) $entry['post_id'] && ! get_post( $entry['post_id'] ) ) {
-			return new WP_Error( 'ccc_post_gone', __( 'The post this change belongs to no longer exists.', 'crawl-cove-connector' ), array( 'status' => 410 ) );
+		$target_id = (int) $entry['post_id'];
+		if ( CCC_Service::HOME_ID !== $target_id ) {
+			if ( $target_id < 0 ) {
+				$term = get_term( -$target_id );
+				if ( ! $term || is_wp_error( $term ) ) {
+					return new WP_Error( 'ccc_term_gone', __( 'The term this change belongs to no longer exists.', 'crawl-cove-connector' ), array( 'status' => 410 ) );
+				}
+			} elseif ( ! get_post( $target_id ) ) {
+				return new WP_Error( 'ccc_post_gone', __( 'The post this change belongs to no longer exists.', 'crawl-cove-connector' ), array( 'status' => 410 ) );
+			}
 		}
 
 		if ( 'title' === $entry['field'] ) {

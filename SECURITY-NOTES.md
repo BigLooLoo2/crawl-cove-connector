@@ -60,6 +60,33 @@ pass, 42 checks). Both adapters: 64/64 green.
    a write. (1) was a read-side correctness bug in `/resolve`'s response,
    not a write-side authorization gap.
 
+## Addendum — 24 Sept 2026 (taxonomy term support, v0.6.0)
+
+Same harness, extended with `tests/integration/taxonomy-checks.sh` (16
+checks) covering the new negative-`post_id` term target across all four
+adapters, plain and pretty permalinks, and the `edit_term`/`manage_categories`
+capability boundary (author blocked, editor allowed — WordPress core's own
+model again, nothing bespoke). Two more real-WordPress-only findings, same
+class as finding 1 above (a core quirk / a plugin helper's own behaviour
+trusted too literally, not a vulnerability in this plugin's own code):
+
+5. **Fixed in code**: on a site with a static front page, `url_to_postid()`
+   collapses *any* query string at the site root (not just the homepage's
+   own) to the front page's post id — `?cat=2` was resolving to the
+   homepage, not the category. `resolve_url()` now resolves query-string
+   term targets (`CCC_Term_Resolver::resolve_plain_query_vars()`) *before*
+   calling `url_to_postid()`, not after.
+6. **Fixed in code**: Yoast's own `WPSEO_Taxonomy_Meta::set_value()` is not
+   a true single-field patch — writing just a term's title (or just its
+   description) was silently resetting the other back to `''`, and would do
+   the same to any other Yoast term setting a site owner had set by hand
+   (focus keyword, Open Graph/Twitter overrides, cornerstone flag). Not an
+   auth/injection issue, but a real silent-data-loss bug a wordpress.org
+   reviewer or a site owner could reasonably treat as a security-adjacent
+   correctness defect. Fixed by reading the term's full current settings
+   first (`get_term_meta()` with no `$meta` arg) and writing them all back
+   with only the intended field changed.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.

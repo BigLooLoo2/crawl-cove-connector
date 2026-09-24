@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.6.0 — 2026-09-24
+
+- Taxonomy term title/description support: fix a single category, tag or
+  custom-taxonomy archive's title/description without touching any other
+  term in that taxonomy (the taxonomy-wide default TEMPLATE was explicitly
+  scoped out — see BACKLOG.md — a template fix would let one crawled-URL
+  fix silently rewrite every other term's title). New negative post_id
+  sentinel (`post_id = -$term_id`) across `/resolve`, `/apply`, `/revert`,
+  the same "reuse the existing int slot" trick `HOME_ID` (0) already uses
+  for the homepage — no new REST fields, no change-log schema change.
+  `CCC_Term_Resolver` (new) resolves a term archive URL two ways: query-var
+  matching for "Plain" permalinks (`?cat=N`, `?category_name=slug`,
+  `?tag=slug`, and any other public taxonomy's own registered query_var),
+  and rewrite-rule matching for pretty permalinks, adapted from WordPress
+  core's own `url_to_postid()` (checks `is_tax`/`is_category`/`is_tag`
+  instead of `is_singular`). Capability is `edit_term` (WordPress core's own
+  meta capability, maps to `manage_categories` for category/post_tag).
+  Yoast via `WPSEO_Taxonomy_Meta::get_term_meta()`/`set_values()`; Rank Math
+  via real term meta (`rank_math_title`/`rank_math_description`, same key
+  names as posts, via core's `get_term_meta()`/`update_term_meta()`).
+  SEOPress and AIOSEO report `ccc_term_unsupported` per-item rather than
+  guessing at their storage.
+- Fix, found by the real-WordPress integration harness rather than unit
+  stubs: `url_to_postid()` has its own quirk on a site with a static front
+  page — *any* query string at the site root (not just the homepage's own)
+  collapses to the front page's post id, because its "is what's left the
+  home URL?" check runs before rewrite-rule matching. `?cat=2` was
+  resolving to the homepage instead of the category. Fixed by resolving
+  query-string term targets BEFORE calling `url_to_postid()`, not after — a
+  named taxonomy query var is a far more precise signal than that coarse
+  check.
+- Fix, also caught by the integration harness: Yoast's own
+  `WPSEO_Taxonomy_Meta::set_value()` is not a true single-field patch for
+  most fields — writing just a term's title (or just its description) was
+  silently resetting the OTHER of the two back to '', and would do the same
+  to any other Yoast term setting a site owner had set by hand (focus
+  keyword, Open Graph/Twitter overrides, cornerstone flag). Fixed by
+  reading the term's full current Yoast settings first and writing them all
+  back with only the intended field changed.
+
 ## 0.5.0 — 2026-09-23
 
 - SEOPress homepage title/description support, extending 0.4.0's

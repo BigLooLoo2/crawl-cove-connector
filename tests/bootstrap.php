@@ -17,6 +17,11 @@ function cc_reset_wp() {
 	$GLOBALS['cc_home']    = 'https://example.com';
 	$GLOBALS['cc_aioseo']  = array(); // post_id => ['title' => ..., 'description' => ...]
 	$GLOBALS['cc_deny_manage_options'] = false;
+	$GLOBALS['cc_terms']            = array(); // term_id => ['taxonomy' => ..., 'name' => ..., 'link' => ...]
+	$GLOBALS['cc_term_urls']        = array(); // url => term_id (CCC_Term_Resolver::resolve_pretty_permalink() stub)
+	$GLOBALS['cc_term_plain_urls']  = array(); // url => term_id (CCC_Term_Resolver::resolve_plain_query_vars() stub)
+	$GLOBALS['cc_term_meta']        = array(); // term_id => key => value
+	$GLOBALS['cc_deny_terms']       = array(); // term_ids current user may NOT edit
 }
 cc_reset_wp();
 
@@ -83,6 +88,9 @@ function current_user_can( $cap, $post_id = null ) {
 	if ( 'edit_post' === $cap ) {
 		return ! in_array( (int) $post_id, $GLOBALS['cc_deny'], true );
 	}
+	if ( 'edit_term' === $cap ) {
+		return ! in_array( (int) $post_id, $GLOBALS['cc_deny_terms'], true );
+	}
 	if ( 'manage_options' === $cap ) {
 		return empty( $GLOBALS['cc_deny_manage_options'] );
 	}
@@ -100,6 +108,115 @@ function apply_filters( $tag, $value ) { return $value; }
 function cc_add_post( $post_id, $url, $title = 'A post' ) {
 	$GLOBALS['cc_posts'][ $post_id ] = array( 'title' => $title, 'url' => $url );
 	$GLOBALS['cc_urls'][ $url ]      = $post_id;
+}
+
+/** Test helper: register a taxonomy term with a resolvable archive URL. */
+function cc_add_term( $term_id, $taxonomy, $name, $url = null, $link = null ) {
+	$GLOBALS['cc_terms'][ $term_id ] = array(
+		'taxonomy' => $taxonomy,
+		'name'     => $name,
+		'link'     => null !== $link ? $link : $name,
+	);
+	if ( null !== $url ) {
+		$GLOBALS['cc_term_urls'][ $url ] = $term_id;
+	}
+}
+
+function get_term( $term, $taxonomy = '' ) {
+	$term_id = is_object( $term ) ? $term->term_id : (int) $term;
+	if ( ! isset( $GLOBALS['cc_terms'][ $term_id ] ) ) {
+		return null;
+	}
+	$row = $GLOBALS['cc_terms'][ $term_id ];
+	if ( $taxonomy && $taxonomy !== $row['taxonomy'] ) {
+		return new WP_Error( 'invalid_taxonomy', 'Invalid taxonomy.' );
+	}
+	return (object) array(
+		'term_id'  => $term_id,
+		'name'     => $row['name'],
+		'taxonomy' => $row['taxonomy'],
+	);
+}
+
+function get_term_link( $term ) {
+	$term_id = is_object( $term ) ? $term->term_id : (int) $term;
+	return isset( $GLOBALS['cc_terms'][ $term_id ] ) ? $GLOBALS['cc_terms'][ $term_id ]['link'] : '';
+}
+
+function get_term_meta( $term_id, $key, $single = false ) {
+	return isset( $GLOBALS['cc_term_meta'][ $term_id ][ $key ] ) ? $GLOBALS['cc_term_meta'][ $term_id ][ $key ] : '';
+}
+function update_term_meta( $term_id, $key, $value ) {
+	$GLOBALS['cc_term_meta'][ $term_id ][ $key ] = $value;
+	return true;
+}
+function delete_term_meta( $term_id, $key ) {
+	unset( $GLOBALS['cc_term_meta'][ $term_id ][ $key ] );
+	return true;
+}
+
+/**
+ * CCC_Term_Resolver's real implementation drives $wp_rewrite/WP_Query rewrite
+ * matching (and get_taxonomies()/get_term_by() query-var matching) that
+ * cannot be meaningfully stubbed — real behaviour, including the
+ * plain-query-vars-must-run-before-url_to_postid() ordering fix, is proven
+ * against a live WordPress install in tests/integration/taxonomy-checks.sh,
+ * same split as WPSEO_Options/WPSEO_Taxonomy_Meta below. This stand-in lets
+ * CCC_Service::resolve_url()'s own logic (calling both in the right order,
+ * building the negative sentinel, re-verifying via get_term()) be
+ * unit-tested without the real URL-matching mechanism.
+ */
+class CCC_Term_Resolver {
+	public static function resolve_plain_query_vars( $url ) {
+		return isset( $GLOBALS['cc_term_plain_urls'][ $url ] ) ? $GLOBALS['cc_term_plain_urls'][ $url ] : 0;
+	}
+	public static function resolve_pretty_permalink( $url ) {
+		return isset( $GLOBALS['cc_term_urls'][ $url ] ) ? $GLOBALS['cc_term_urls'][ $url ] : 0;
+	}
+}
+
+/**
+ * Minimal stand-in for Yoast's \WPSEO_Taxonomy_Meta, shaped like the real
+ * get_term_meta()/set_value() (read-modify-write onto the
+ * 'wpseo_taxonomy_meta' option, shaped [taxonomy][term_id][wpseo_*], via the
+ * same get_option()/update_option() stubs above) so CCC_Adapter's term-title
+ * code path is unit-testable without the real plugin installed.
+ */
+class WPSEO_Taxonomy_Meta {
+	private static $defaults_per_term = array(
+		'wpseo_title' => '',
+		'wpseo_desc'  => '',
+	);
+
+	// Real signature is ( $term, $taxonomy, $meta = null ) — omitting $meta
+	// returns the full per-term array (every key, defaults merged in), the
+	// same "no true single-field patch" shape CCC_Adapter's Yoast term-write
+	// path depends on (see includes/class-ccc-adapter.php's set_term_field()
+	// for why that distinction matters).
+	public static function get_term_meta( $term_id, $taxonomy, $meta = null ) {
+		$all   = get_option( 'wpseo_taxonomy_meta', array() );
+		$stored = isset( $all[ $taxonomy ][ $term_id ] ) ? $all[ $taxonomy ][ $term_id ] : array();
+		if ( null === $meta ) {
+			return array_merge( self::$defaults_per_term, $stored );
+		}
+		$key = 'wpseo_' . $meta;
+		return isset( $stored[ $key ] ) ? $stored[ $key ] : false;
+	}
+
+	public static function set_value( $term_id, $taxonomy, $meta, $value ) {
+		self::set_values( $term_id, $taxonomy, array( 'wpseo_' . $meta => $value ) );
+	}
+
+	public static function set_values( $term_id, $taxonomy, array $meta_values ) {
+		$all = get_option( 'wpseo_taxonomy_meta', array() );
+		if ( ! isset( $all[ $taxonomy ][ $term_id ] ) ) {
+			$all[ $taxonomy ][ $term_id ] = array();
+		}
+		foreach ( $meta_values as $key => $value ) {
+			$all[ $taxonomy ][ $term_id ][ $key ] = $value;
+		}
+		update_option( 'wpseo_taxonomy_meta', $all );
+	}
 }
 
 /**

@@ -207,4 +207,73 @@ class AdapterTest extends TestCase {
 		$this->assertSame( '', $a->get_title( 0 ) );
 		$this->assertSame( '', $a->get_description( 0 ) );
 	}
+
+	// ── taxonomy terms (negative post_id sentinel) ─────────────────
+
+	public function test_supports_term_for_yoast_and_rankmath_only() {
+		$this->assertTrue( ( new CCC_Adapter( 'yoast', 'a', 'b' ) )->supports_term() );
+		$this->assertTrue( ( new CCC_Adapter( 'rankmath', 'a', 'b' ) )->supports_term() );
+		$this->assertFalse( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_term() );
+		$this->assertFalse( ( new CCC_Adapter( 'aioseo', 'a', 'b' ) )->supports_term() );
+	}
+
+	public function test_rankmath_term_title_writes_through_real_term_meta() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( -5, 'New term title' );
+		$a->set_description( -5, 'New term desc' );
+		$this->assertSame( 'New term title', $a->get_title( -5 ) );
+		$this->assertSame( 'New term desc', $a->get_description( -5 ) );
+		$this->assertSame( 'New term title', $GLOBALS['cc_term_meta'][5]['rank_math_title'] );
+	}
+
+	public function test_rankmath_term_empty_value_deletes_the_override() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( -5, 'Something' );
+		$a->set_title( -5, '' );
+		$this->assertSame( '', $a->get_title( -5 ) );
+		$this->assertArrayNotHasKey( 'rank_math_title', $GLOBALS['cc_term_meta'][5] ?? array() );
+	}
+
+	public function test_rankmath_term_write_never_touches_post_meta() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );
+		$a->set_title( -5, 'New term title' );
+		$this->assertArrayNotHasKey( 5, $GLOBALS['cc_meta'] );
+	}
+
+	public function test_yoast_term_title_writes_through_taxonomy_meta_option() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$a->set_title( -5, 'New term title' );
+		$a->set_description( -5, 'New term desc' );
+		$this->assertSame( 'New term title', $a->get_title( -5 ) );
+		$this->assertSame( 'New term desc', $a->get_description( -5 ) );
+		$this->assertSame( 'New term title', $GLOBALS['cc_options']['wpseo_taxonomy_meta']['category'][5]['wpseo_title'] );
+	}
+
+	public function test_yoast_term_write_preserves_unrelated_terms_and_taxonomies() {
+		cc_add_term( 5, 'category', 'News' );
+		cc_add_term( 6, 'post_tag', 'Breaking' );
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$a->set_title( -5, 'News title' );
+		$a->set_title( -6, 'Tag title' );
+		$this->assertSame( 'News title', $a->get_title( -5 ) );
+		$this->assertSame( 'Tag title', $a->get_title( -6 ) );
+	}
+
+	public function test_unresolvable_term_id_returns_empty_values_and_does_not_write() {
+		$a = new CCC_Adapter( 'yoast', '_yoast_wpseo_title', '_yoast_wpseo_metadesc' );
+		$this->assertSame( '', $a->get_title( -999 ) );
+		$a->set_title( -999, 'Should not be stored anywhere findable' );
+		$this->assertArrayNotHasKey( 'wpseo_taxonomy_meta', $GLOBALS['cc_options'] );
+	}
+
+	public function test_unsupported_adapter_returns_empty_term_values() {
+		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		cc_add_term( 5, 'category', 'News' );
+		$this->assertSame( '', $a->get_title( -5 ) );
+		$this->assertSame( '', $a->get_description( -5 ) );
+	}
 }

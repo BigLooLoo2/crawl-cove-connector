@@ -26,11 +26,12 @@ class CCC_Service {
 	const HOME_ID = 0;
 
 	/**
-	 * Resolve a URL on this site to a post id, or to HOME_ID for the
-	 * "your latest posts" homepage.
+	 * Resolve a URL on this site to a post id, to HOME_ID for the "your
+	 * latest posts" homepage, or to a NEGATIVE int (-$term_id) for a
+	 * taxonomy archive (e.g. /category/news/).
 	 *
 	 * @param string $url URL to resolve.
-	 * @return int|WP_Error Post id (>= 0) or an error explaining why not.
+	 * @return int|WP_Error Post id (>= 0), a negative term-id sentinel, or an error explaining why not.
 	 */
 	public static function resolve_url( $url ) {
 		if ( ! is_string( $url ) || '' === trim( $url ) ) {
@@ -52,21 +53,52 @@ class CCC_Service {
 			return self::HOME_ID;
 		}
 
+		// A NEGATIVE post_id (-$term_id) is this plugin's own sentinel for
+		// "this target is a term, not a post", the same trick HOME_ID (0)
+		// already uses for the homepage (term ids are always positive, so 0
+		// and negative numbers are both free to repurpose).
+		//
+		// Term resolution by query string runs BEFORE url_to_postid(), not
+		// after: on a site with a static front page, url_to_postid() has its
+		// own quirk where *any* query string at the site root (e.g. a term
+		// archive's "?cat=2") collapses to the front page's post id, because
+		// its own "is what's left the home URL?" check runs before rewrite
+		// matching. A named taxonomy query var is confirmed against real
+		// WordPress to be a far more precise signal than that coarse check.
+		$term_id = CCC_Term_Resolver::resolve_plain_query_vars( $url );
+		if ( $term_id ) {
+			$term = get_term( $term_id );
+			if ( $term && ! is_wp_error( $term ) ) {
+				return -$term_id;
+			}
+		}
+
 		$post_id = url_to_postid( $url );
 		// url_to_postid() pattern-matches "?p=N" / "?page_id=N" straight out of
 		// the query string without checking the post exists — confirmed against
 		// real WordPress (a plain-permalink URL for a deleted/never-existing id
 		// still returns that id). Verify it ourselves so a stale or guessed
 		// numeric URL reports unresolvable instead of a phantom "resolved" post.
-		if ( ! $post_id || ! get_post( $post_id ) ) {
-			return new WP_Error(
-				'ccc_unresolvable',
-				__( 'URL does not map to a post or page. Archives, taxonomy and virtual pages are not supported yet.', 'crawl-cove-connector' ),
-				array( 'status' => 404 )
-			);
+		if ( $post_id && get_post( $post_id ) ) {
+			return $post_id;
 		}
 
-		return $post_id;
+		// url_to_postid() only ever matches a *singular* query — a taxonomy
+		// archive under pretty permalinks (e.g. /category/news/) never
+		// resolves there. Try rewrite-rule term resolution before giving up.
+		$term_id = CCC_Term_Resolver::resolve_pretty_permalink( $url );
+		if ( $term_id ) {
+			$term = get_term( $term_id );
+			if ( $term && ! is_wp_error( $term ) ) {
+				return -$term_id;
+			}
+		}
+
+		return new WP_Error(
+			'ccc_unresolvable',
+			__( 'URL does not map to a post, page or taxonomy archive.', 'crawl-cove-connector' ),
+			array( 'status' => 404 )
+		);
 	}
 
 	/**
@@ -99,17 +131,22 @@ class CCC_Service {
 	}
 
 	/**
-	 * Whether the current user may edit the given target — a real post, or
-	 * the homepage (which has no post to check `edit_post` against, so
+	 * Whether the current user may edit the given target — a real post, the
+	 * homepage (which has no post to check `edit_post` against, so
 	 * `manage_options` — the capability Settings -> Reading requires — is
-	 * used instead).
+	 * used instead), or a taxonomy term (`edit_term`, WordPress core's own
+	 * meta capability, maps through to the term's taxonomy — e.g.
+	 * `manage_categories` for category/post_tag).
 	 *
-	 * @param int $post_id Post id, or HOME_ID.
+	 * @param int $post_id Post id, HOME_ID, or a negative term-id sentinel.
 	 * @return bool
 	 */
 	public static function can_edit_target( $post_id ) {
 		if ( self::HOME_ID === $post_id ) {
 			return current_user_can( 'manage_options' );
+		}
+		if ( $post_id < 0 ) {
+			return current_user_can( 'edit_term', -$post_id );
 		}
 		return current_user_can( 'edit_post', $post_id );
 	}
@@ -129,6 +166,20 @@ class CCC_Service {
 				'post_title' => __( 'Homepage (latest posts)', 'crawl-cove-connector' ),
 				'permalink'  => home_url( '/' ),
 				'editable'   => self::can_edit_target( $post_id ) && $adapter->supports_home(),
+				'current'    => array(
+					'title'       => $adapter->get_title( $post_id ),
+					'description' => $adapter->get_description( $post_id ),
+				),
+			);
+		}
+		if ( $post_id < 0 ) {
+			$term = get_term( -$post_id );
+			$link = ( $term && ! is_wp_error( $term ) ) ? get_term_link( $term ) : '';
+			return array(
+				'post_id'    => (int) $post_id,
+				'post_title' => ( $term && ! is_wp_error( $term ) ) ? $term->name : '',
+				'permalink'  => is_wp_error( $link ) ? '' : $link,
+				'editable'   => self::can_edit_target( $post_id ) && $adapter->supports_term(),
 				'current'    => array(
 					'title'       => $adapter->get_title( $post_id ),
 					'description' => $adapter->get_description( $post_id ),
@@ -161,11 +212,16 @@ class CCC_Service {
 			return new WP_Error( 'ccc_bad_change', __( 'Each change must be an object.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
 		}
 
-		if ( array_key_exists( 'post_id', $item ) && is_numeric( $item['post_id'] ) && (int) $item['post_id'] >= 0 ) {
+		if ( array_key_exists( 'post_id', $item ) && is_numeric( $item['post_id'] ) ) {
 			$post_id = (int) $item['post_id'];
 			if ( self::HOME_ID === $post_id ) {
 				if ( 'page' === get_option( 'show_on_front' ) ) {
 					return new WP_Error( 'ccc_no_homepage_target', __( 'This site has a static front page — pass that page\'s own post_id instead of 0.', 'crawl-cove-connector' ), array( 'status' => 400 ) );
+				}
+			} elseif ( $post_id < 0 ) {
+				$term = get_term( -$post_id );
+				if ( ! $term || is_wp_error( $term ) ) {
+					return new WP_Error( 'ccc_no_term', __( 'No term with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
 				}
 			} elseif ( ! get_post( $post_id ) ) {
 				return new WP_Error( 'ccc_no_post', __( 'No post with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
@@ -262,6 +318,16 @@ class CCC_Service {
 				);
 				continue;
 			}
+			if ( $post_id < 0 && ! $adapter->supports_term() ) {
+				$results[] = array(
+					'index'   => $i,
+					'ok'      => false,
+					'error'   => 'ccc_term_unsupported',
+					/* translators: %s: active SEO plugin's display name */
+					'message' => sprintf( __( '%s does not support taxonomy term title/description changes yet.', 'crawl-cove-connector' ), $adapter->label() ),
+				);
+				continue;
+			}
 			if ( ! self::can_edit_target( $post_id ) ) {
 				$results[] = array(
 					'index'   => $i,
@@ -298,7 +364,13 @@ class CCC_Service {
 					}
 					$entry             = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
 					$step['change_id'] = $entry['id'];
-					if ( self::HOME_ID !== $post_id ) {
+					// Only a REAL post id gets re-saved to rebuild Yoast's
+					// indexable — HOME_ID (0) and a negative term id are both
+					// sentinels, not rows wp_update_post() could touch (ID 0
+					// is core's INSERT signal, and a negative ID is nonsense
+					// to core entirely; the same class of bug the HOME_ID
+					// homepage work caught and fixed).
+					if ( $post_id > 0 ) {
 						$touched_posts[ $post_id ] = true;
 					}
 				}
