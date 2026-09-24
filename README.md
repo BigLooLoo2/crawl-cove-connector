@@ -75,10 +75,10 @@ back to `/apply` or `/revert` to target it.
 ### The taxonomy term target (a negative `post_id`)
 
 A category, tag or custom-taxonomy archive (e.g. `/category/news/`) has no
-post to hold a title/description override — Yoast and Rank Math each keep
-per-term SEO data in their own storage instead. `/resolve` reports a term
-archive URL as `post_id: -$term_id` (term ids are always positive, so a
-negative number is unambiguous and free to repurpose — the same trick
+post to hold a title/description override — Yoast, Rank Math and SEOPress
+each keep per-term SEO data in their own storage instead. `/resolve` reports
+a term archive URL as `post_id: -$term_id` (term ids are always positive, so
+a negative number is unambiguous and free to repurpose — the same trick
 `post_id: 0` already uses for the homepage); pass that same negative number
 back to `/apply` or `/revert` to target it.
 
@@ -88,12 +88,13 @@ default title *template* (Settings the SEO plugin itself exposes, e.g.
 affect every term in that taxonomy at once — wrong for a fix aimed at one
 crawled URL — so this plugin never touches it.
 
-- **Supported adapters**: Yoast SEO and Rank Math. SEOPress and AIOSEO
-  changes to a term fail with `ccc_term_unsupported` — the change is
-  reported, not silently dropped. Both are unresearched for terms (same
-  posture the homepage work originally had for all four adapters); a
-  future release may add them once their term storage is verified against
-  real source the same way Yoast's and Rank Math's was.
+- **Supported adapters**: Yoast SEO, Rank Math and SEOPress. AIOSEO changes
+  to a term fail with `ccc_term_unsupported` — the change is reported, not
+  silently dropped. AIOSEO isn't just unresearched: its own source confirms
+  per-term SEO fields are a Pro-only feature (`app/Common/Main/
+  BulkActions.php`: "Pro only. The term analysis columns live on the Pro
+  aioseo_terms table") — nothing exists to write to in the free plugin this
+  connector supports.
 - **Capability**: `edit_term`, WordPress core's own meta capability for
   editing a specific term — there is no post to check `edit_post` against.
   It maps through to the term's taxonomy (e.g. `manage_categories` for
@@ -101,10 +102,12 @@ crawled URL — so this plugin never touches it.
   type). Editor-role users have this by default; Author-role users do not.
 - Sending a negative `post_id` with no matching term returns `ccc_no_term`.
 - Unlike Rank Math's homepage title, clearing a term's title or description
-  to `''` is safe for both supported adapters — each falls back to the
+  to `''` is safe for all three supported adapters — each falls back to the
   taxonomy's own default title template, verified against real source
   (Rank Math's `Paper\Taxonomy::title()`; Yoast's term-archive indexable
-  presentation follows the same pattern as its homepage description).
+  presentation follows the same pattern as its homepage description;
+  SEOPress's `TaxonomySpecification::getValue()` falls through to its own
+  per-taxonomy default the same way).
 
 See [SECURITY-NOTES.md](SECURITY-NOTES.md) for the full security pass (capability matrix, fuzzing, findings).
 

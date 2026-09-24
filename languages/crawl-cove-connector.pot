@@ -2,14 +2,14 @@
 # This file is distributed under the GPLv2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Crawl Cove Connector 0.6.0\n"
+"Project-Id-Version: Crawl Cove Connector 0.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/crawl-cove-connector\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-24T13:09:38+00:00\n"
+"POT-Creation-Date: 2026-09-24T13:32:09+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: crawl-cove-connector\n"
@@ -161,7 +161,7 @@ msgid "At most 100 urls per request."
 msgstr ""
 
 #: includes/class-ccc-rest.php:217
-#: includes/class-ccc-service.php:320
+#: includes/class-ccc-service.php:336
 msgid "This user may not edit that target."
 msgstr ""
 
@@ -179,72 +179,72 @@ msgstr ""
 msgid "URL is not on this site (%s) — check the site profile in Crawl Cove."
 msgstr ""
 
-#: includes/class-ccc-service.php:83
+#: includes/class-ccc-service.php:99
 msgid "URL does not map to a post, page or taxonomy archive."
 msgstr ""
 
-#: includes/class-ccc-service.php:150
+#: includes/class-ccc-service.php:166
 msgid "Homepage (latest posts)"
 msgstr ""
 
-#: includes/class-ccc-service.php:196
+#: includes/class-ccc-service.php:212
 msgid "Each change must be an object."
 msgstr ""
 
-#: includes/class-ccc-service.php:203
+#: includes/class-ccc-service.php:219
 msgid "This site has a static front page — pass that page's own post_id instead of 0."
 msgstr ""
 
-#: includes/class-ccc-service.php:208
+#: includes/class-ccc-service.php:224
 msgid "No term with that id."
 msgstr ""
 
-#: includes/class-ccc-service.php:211
+#: includes/class-ccc-service.php:227
 msgid "No post with that id."
 msgstr ""
 
-#: includes/class-ccc-service.php:219
+#: includes/class-ccc-service.php:235
 msgid "A change needs a url or a post_id."
 msgstr ""
 
 #. translators: %s: field name, either "title" or "description"
-#: includes/class-ccc-service.php:232
+#: includes/class-ccc-service.php:248
 #, php-format
 msgid "%s must be a string."
 msgstr ""
 
 #. translators: 1: field name, either "title" or "description"; 2: max length allowed
-#: includes/class-ccc-service.php:239
+#: includes/class-ccc-service.php:255
 #, php-format
 msgid "%1$s is longer than %2$d characters."
 msgstr ""
 
-#: includes/class-ccc-service.php:247
+#: includes/class-ccc-service.php:263
 msgid "A change needs a title and/or a description."
 msgstr ""
 
-#: includes/class-ccc-service.php:268
+#: includes/class-ccc-service.php:284
 msgid "changes must be a non-empty array."
 msgstr ""
 
 #. translators: %d: maximum number of changes allowed per request
-#: includes/class-ccc-service.php:274
+#: includes/class-ccc-service.php:290
 #, php-format
 msgid "At most %d changes per request."
 msgstr ""
 
 #. translators: %s: active SEO plugin's display name
-#: includes/class-ccc-service.php:301
+#: includes/class-ccc-service.php:317
 #, php-format
 msgid "%s does not support homepage title/description changes yet."
 msgstr ""
 
 #. translators: %s: active SEO plugin's display name
-#: includes/class-ccc-service.php:311
+#: includes/class-ccc-service.php:327
 #, php-format
 msgid "%s does not support taxonomy term title/description changes yet."
 msgstr ""
 
-#: includes/class-ccc-service.php:333
+#: includes/class-ccc-service.php:349
 msgid "This SEO plugin's homepage title has no automatic fallback — clearing it would leave a blank browser-tab title. Set a new title instead, or clear it from the SEO plugin's own settings directly."
 msgstr ""

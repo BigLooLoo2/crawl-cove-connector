@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.0 — 2026-09-24
+
+- SEOPress taxonomy term title/description support, extending 0.6.0's
+  per-term target (Yoast, Rank Math) to a third adapter. Verified against
+  real SEOPress source: unlike Yoast's shared-option storage, per-term SEO
+  data is plain term meta under the *exact same key names* as its
+  post-level fields (`_seopress_titles_title`/`_seopress_titles_desc`),
+  confirmed at `src/Services/Metas/Title/Specifications/
+  TaxonomySpecification.php` (read) and `inc/admin/metaboxes/
+  admin-term-metaboxes.php` (write, plain `update_term_meta()`/
+  `delete_term_meta()`) — no shared-array read-modify-write risk, same
+  simple pattern as Rank Math's term storage, so both now share one code
+  path in `CCC_Adapter`.
+- AIOSEO's term unsupported status is now confirmed on the merits, not
+  left unresearched: its own source (`app/Common/Main/BulkActions.php`)
+  states outright that per-term SEO analysis columns "live on the Pro
+  aioseo_terms table" and the free-tier REST term controller's meta-field
+  registration is a deliberate no-op ("Term SEO meta requires the Pro Term
+  model"). The free plugin this connector supports has no term SEO storage
+  to write to at all.
+- 84 unit tests (+2), taxonomy integration checks extended to all
+  supporting adapters, full gate green, Plugin Check clean.
+
 ## 0.6.0 — 2026-09-24
 
 - Taxonomy term title/description support: fix a single category, tag or

@@ -341,10 +341,10 @@ class ServiceTest extends TestCase {
 
 	public function test_apply_rejects_term_changes_for_an_adapter_without_term_support() {
 		cc_add_term( 5, 'category', 'News' );
-		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
-		$res      = CCC_Service::apply(
+		$aioseo = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
+		$res    = CCC_Service::apply(
 			array( array( 'post_id' => -5, 'title' => 'X' ) ),
-			false, $seopress, 'bloo'
+			false, $aioseo, 'bloo'
 		);
 		$this->assertFalse( $res[0]['ok'] );
 		$this->assertSame( 'ccc_term_unsupported', $res[0]['error'] );
@@ -401,8 +401,8 @@ class ServiceTest extends TestCase {
 
 	public function test_describe_term_not_editable_when_adapter_lacks_support() {
 		cc_add_term( 5, 'category', 'News' );
-		$seopress = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
-		$d        = CCC_Service::describe( -5, $seopress );
+		$aioseo = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
+		$d      = CCC_Service::describe( -5, $aioseo );
 		$this->assertFalse( $d['editable'] );
 	}
 

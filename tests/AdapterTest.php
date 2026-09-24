@@ -210,10 +210,10 @@ class AdapterTest extends TestCase {
 
 	// ── taxonomy terms (negative post_id sentinel) ─────────────────
 
-	public function test_supports_term_for_yoast_and_rankmath_only() {
+	public function test_supports_term_for_yoast_rankmath_and_seopress_not_aioseo() {
 		$this->assertTrue( ( new CCC_Adapter( 'yoast', 'a', 'b' ) )->supports_term() );
 		$this->assertTrue( ( new CCC_Adapter( 'rankmath', 'a', 'b' ) )->supports_term() );
-		$this->assertFalse( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_term() );
+		$this->assertTrue( ( new CCC_Adapter( 'seopress', 'a', 'b' ) )->supports_term() );
 		$this->assertFalse( ( new CCC_Adapter( 'aioseo', 'a', 'b' ) )->supports_term() );
 	}
 
@@ -271,9 +271,28 @@ class AdapterTest extends TestCase {
 	}
 
 	public function test_unsupported_adapter_returns_empty_term_values() {
-		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$a = new CCC_Adapter( 'aioseo', '_aioseo_title', '_aioseo_description' );
 		cc_add_term( 5, 'category', 'News' );
 		$this->assertSame( '', $a->get_title( -5 ) );
 		$this->assertSame( '', $a->get_description( -5 ) );
+	}
+
+	public function test_seopress_term_title_writes_through_real_term_meta_same_keys_as_posts() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$a->set_title( -5, 'New term title' );
+		$a->set_description( -5, 'New term desc' );
+		$this->assertSame( 'New term title', $a->get_title( -5 ) );
+		$this->assertSame( 'New term desc', $a->get_description( -5 ) );
+		$this->assertSame( 'New term title', $GLOBALS['cc_term_meta'][5]['_seopress_titles_title'] );
+	}
+
+	public function test_seopress_term_empty_value_deletes_the_override() {
+		cc_add_term( 5, 'category', 'News' );
+		$a = new CCC_Adapter( 'seopress', '_seopress_titles_title', '_seopress_titles_desc' );
+		$a->set_title( -5, 'Something' );
+		$a->set_title( -5, '' );
+		$this->assertSame( '', $a->get_title( -5 ) );
+		$this->assertArrayNotHasKey( '_seopress_titles_title', $GLOBALS['cc_term_meta'][5] ?? array() );
 	}
 }

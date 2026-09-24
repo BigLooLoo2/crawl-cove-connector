@@ -12,10 +12,11 @@
 # ?category_name=slug, ?tag=slug); pretty permalinks resolve via
 # $wp_rewrite's compiled rules. Restores whatever structure was active after.
 #
-# Run by run.sh for every adapter: yoast/rankmath must resolve, apply, revert
-# and round-trip through the real plugin's own term storage; seopress/aioseo
-# (unresearched for terms, same posture as the homepage work originally had)
-# must fail cleanly with ccc_term_unsupported.
+# Run by run.sh for every adapter: yoast/rankmath/seopress must resolve,
+# apply, revert and round-trip through the real plugin's own term storage;
+# aioseo (its free/Lite tier has no term SEO storage at all, confirmed
+# against its own source — see CCC_Adapter::supports_term()) must fail
+# cleanly with ccc_term_unsupported.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,7 +60,7 @@ check "resolve: a term slug that doesn't exist is unresolvable, not a phantom ma
 req POST /resolve "$EDITOR" "{\"urls\":[\"$CCC_URL/?p=$CCC_POST_EDITOR\"]}"
 check "resolve: an ordinary post URL is still itself, never mistaken for a term" 200 "$RESP_HTTP" '.[0].post_id' "$CCC_POST_EDITOR" "$RESP_BODY"
 
-if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" ]]; then
+if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" || "$CCC_ADAPTER" == "seopress" ]]; then
   echo "-- taxonomy terms: capability is edit_term (manage_categories), author blocked --"
   # supports_term() is checked before the capability gate (apply()'s own
   # precedence: "this feature doesn't exist" beats "you may not use it"), so
@@ -69,7 +70,7 @@ if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" ]]; then
   check "apply: author (no manage_categories) forbidden on a term" 200 "$RESP_HTTP" '.[0].error' 'ccc_forbidden' "$RESP_BODY"
 fi
 
-if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" ]]; then
+if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" || "$CCC_ADAPTER" == "seopress" ]]; then
   echo "-- taxonomy terms: apply + real plugin storage round-trip ($CCC_ADAPTER) --"
   req POST /apply "$EDITOR" "{\"changes\":[{\"post_id\":-$NEWS_TERM_ID,\"title\":\"News Title From CCC\",\"description\":\"News Desc From CCC\"}]}"
   check "apply: term write ok" 200 "$RESP_HTTP" '.[0].ok' 'true' "$RESP_BODY"
@@ -77,8 +78,10 @@ if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" ]]; then
 
   if [[ "$CCC_ADAPTER" == "yoast" ]]; then
     STORED="$("${WPCLI[@]}" option get wpseo_taxonomy_meta --format=json --path="$CCC_SITE" | jq -r ".category[\"$NEWS_TERM_ID\"].wpseo_title")"
-  else
+  elif [[ "$CCC_ADAPTER" == "rankmath" ]]; then
     STORED="$("${WPCLI[@]}" term meta get "$NEWS_TERM_ID" rank_math_title --path="$CCC_SITE")"
+  else
+    STORED="$("${WPCLI[@]}" term meta get "$NEWS_TERM_ID" _seopress_titles_title --path="$CCC_SITE")"
   fi
   if [[ "$STORED" == "News Title From CCC" ]]; then
     PASS=$((PASS+1)); echo "  ok   apply: term title actually persisted in the SEO plugin's own storage (not just CCC's own read-back)"
@@ -102,7 +105,7 @@ if [[ "$CCC_ADAPTER" == "yoast" || "$CCC_ADAPTER" == "rankmath" ]]; then
   check "apply: clearing a term title is allowed for $CCC_ADAPTER (per-taxonomy template fallback exists)" 200 "$RESP_HTTP" '.[0].applied.title.changed' 'true' "$RESP_BODY"
 fi
 
-if [[ "$CCC_ADAPTER" == "seopress" || "$CCC_ADAPTER" == "aioseo" ]]; then
+if [[ "$CCC_ADAPTER" == "aioseo" ]]; then
   echo "-- taxonomy terms: unsupported adapter fails cleanly ($CCC_ADAPTER) --"
   req POST /apply "$EDITOR" "{\"changes\":[{\"post_id\":-$NEWS_TERM_ID,\"title\":\"Should Not Write\"}]}"
   check "apply: term unsupported for $CCC_ADAPTER" 200 "$RESP_HTTP" '.[0].error' 'ccc_term_unsupported' "$RESP_BODY"

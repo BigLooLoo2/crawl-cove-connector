@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.7.0 =
+* SEOPress taxonomy term title/description support, extending 0.6.0's per-term target to a third adapter. Its term storage turned out to be the simplest of the three: plain term meta under the exact same key names as its post-level fields, no shared-array read-modify-write risk. AIOSEO stays unsupported, and not just unresearched — its own source confirms per-term SEO fields are a Pro-only feature, absent entirely from the free plugin this connector supports.
 
 = 0.6.0 =
 * Taxonomy term title/description support: fix one category, tag or custom-taxonomy archive's title/description without affecting every other term in that taxonomy. Yoast and Rank Math only for now — SEOPress and AIOSEO report the change as unsupported rather than guessing at their storage.

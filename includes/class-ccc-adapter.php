@@ -205,15 +205,14 @@ class CCC_Adapter {
 
 	/**
 	 * Whether this adapter can read/write a taxonomy term's (category,
-	 * tag, custom taxonomy) archive title/description. True for Yoast
-	 * and Rank Math only — verified against real plugin source
-	 * (24 Sept 2026):
-	 * - Yoast stores per-term SEO data in ONE option,
+	 * tag, custom taxonomy) archive title/description. True for Yoast,
+	 * Rank Math and SEOPress — verified against real plugin source:
+	 * - Yoast (24 Sept 2026) stores per-term SEO data in ONE option,
 	 *   `wpseo_taxonomy_meta`, shaped `[taxonomy][term_id][wpseo_*]` —
 	 *   read via `WPSEO_Taxonomy_Meta::get_term_meta()`, written via its
-	 *   `set_value()` (a safe read-modify-write, same risk class as the
+	 *   `set_values()` (a safe read-modify-write, same risk class as the
 	 *   homepage's `wpseo_titles` option).
-	 * - Rank Math uses real term meta (`rank_math_title`/
+	 * - Rank Math (24 Sept 2026) uses real term meta (`rank_math_title`/
 	 *   `rank_math_description` via core's own `get_term_meta()`/
 	 *   `update_term_meta()`), the exact same key names it uses for
 	 *   posts, just against a term id instead of a post id — confirmed
@@ -221,14 +220,27 @@ class CCC_Adapter {
 	 *   `Term::get_meta()`, which resolves to `get_term_meta( $id,
 	 *   'rank_math_title', true )`) and `includes/traits/class-meta.php`
 	 *   (writes via `update_term_meta()`/`delete_term_meta()`).
-	 * SEOPress and AIOSEO are unresearched for terms (same as the
-	 * homepage work originally was) — report `ccc_term_unsupported`
-	 * per-item rather than guessing at their storage.
+	 * - SEOPress (24 Sept 2026) also uses real term meta, and — unlike
+	 *   Rank Math — under the EXACT SAME key names as its post-level
+	 *   postmeta (`_seopress_titles_title`/`_seopress_titles_desc`,
+	 *   `$this->title_key`/`$this->description_key`): confirmed at
+	 *   `src/Services/Metas/Title/Specifications/TaxonomySpecification.php`
+	 *   (reads via `get_term_meta( $term->term_id, '_seopress_titles_title',
+	 *   true )`) and `inc/admin/metaboxes/admin-term-metaboxes.php` (writes
+	 *   via plain `update_term_meta()`/`delete_term_meta()`, same as posts).
+	 * AIOSEO is the one genuine "no" here, not unresearched: its free/Lite
+	 * tier has no term SEO storage at all — its own source says so
+	 * explicitly (`app/Common/Main/BulkActions.php`: "Pro only. The term
+	 * analysis columns live on the Pro aioseo_terms table"; the REST term
+	 * controller's meta-data field registration is a deliberate no-op in
+	 * Lite, "Term SEO meta requires the Pro Term model"). Nothing to write
+	 * to without the paid plugin, so `ccc_term_unsupported` is correct on
+	 * the merits.
 	 *
 	 * @return bool
 	 */
 	public function supports_term() {
-		return in_array( $this->id, array( 'yoast', 'rankmath' ), true );
+		return in_array( $this->id, array( 'yoast', 'rankmath', 'seopress' ), true );
 	}
 
 	/**
@@ -374,8 +386,15 @@ class CCC_Adapter {
 			$value = \WPSEO_Taxonomy_Meta::get_term_meta( $term_id, $taxonomy, $meta );
 			return false === $value ? '' : (string) $value;
 		}
-		if ( 'rankmath' === $this->id ) {
-			$key = ( 'title' === $field ) ? 'rank_math_title' : 'rank_math_description';
+		if ( 'rankmath' === $this->id || 'seopress' === $this->id ) {
+			// Both plugins reuse their per-post title and description
+			// meta key names for terms too, confirmed against real
+			// SEOPress source on 24 Sept 2026: its own term edit screen
+			// writes those exact same keys as plain term meta, the same
+			// way its post metabox does. Ordinary meta rows, independent
+			// per field, no shared-array read-modify-write risk here,
+			// unlike Yoast's taxonomy meta option just above.
+			$key = ( 'title' === $field ) ? $this->title_key : $this->description_key;
 			return (string) get_term_meta( $term_id, $key, true );
 		}
 		return '';
@@ -421,8 +440,8 @@ class CCC_Adapter {
 			\WPSEO_Taxonomy_Meta::set_values( $term_id, $taxonomy, $current );
 			return;
 		}
-		if ( 'rankmath' === $this->id ) {
-			$key = ( 'title' === $field ) ? 'rank_math_title' : 'rank_math_description';
+		if ( 'rankmath' === $this->id || 'seopress' === $this->id ) {
+			$key = ( 'title' === $field ) ? $this->title_key : $this->description_key;
 			if ( '' === $value ) {
 				delete_term_meta( $term_id, $key );
 			} else {
