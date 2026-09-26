@@ -117,6 +117,49 @@ core already withholds):
    lands in that subsite's own postmeta table, never the network's shared
    tables.
 
+## Addendum — 26 Sept 2026 (caching-plugin interaction — a real bug, now fixed)
+
+Investigated on the hypothesis that a caching plugin's own per-page purge
+hook might not fire for every CCC write path — not a security issue, but a
+correctness one with the same "silent, invisible failure" shape worth this
+file's discipline. Confirmed real, not assumed: downloaded WP Super Cache's
+actual current-stable source from wordpress.org and read its cache-purge
+functions directly (`wp-cache-phase2.php`) rather than guessing at its
+behavior.
+
+9. **Real bug, now fixed**: `wp_cache_post_edit()`/`wp_cache_post_change()`
+   — WP Super Cache's own functions, hooked to core's `clean_post_cache`
+   action — both `return` immediately when `$post_id === 0`, and neither is
+   registered on any term-edit action at all. CCC's homepage (`post_id 0`)
+   and taxonomy-archive (negative term-id sentinel) writes went through
+   `update_option()`/term meta directly, with no `wp_update_post()` call to
+   fire `clean_post_cache` in the first place — so a site running WP Super
+   Cache (or any similarly-built caching plugin) kept serving a stale
+   cached homepage or category/tag archive page after a desktop-app push,
+   for as long as that page's cache lived. `CCC_Service::invalidate_caches_for()`
+   now runs a best-effort full-site purge (WP Super Cache, W3 Total Cache,
+   WP Rocket, WP Fastest Cache via `function_exists()`-guarded calls to
+   their own public functions, plus LiteSpeed Cache's documented
+   `litespeed_purge_all` action) for these two target types, and always
+   fires a new `ccc_after_uncached_write` action for anything not listed.
+10. **Second real bug found investigating the first**: `CCC_Change_Log::
+    revert()` never called `wp_update_post()` at all, for ANY target —
+    including an ordinary post. A reverted post's Yoast indexable went
+    stale and no caching plugin learned the page changed, the exact defect
+    class `apply()` already had a fix for (re-saving the post) that
+    `revert()` simply never inherited. Both fixes share one code path now
+    (`CCC_Service::invalidate_caches_for()`, called from both `apply()` and
+    `revert()`), so they can't drift apart again silently.
+
+Verified against a real WordPress + real Rank Math install, not just unit
+stubs: `tests/integration/caching-checks.sh` uses an mu-plugin probe that
+logs real firings of `clean_post_cache` and a stand-in for WP Super Cache's
+own `wp_cache_clear_cache()` (name and signature taken from its real
+source, not guessed). Confirmed the harness genuinely catches the bug, not
+just exercises the happy path: reverted the fix locally and re-ran it first
+— 10 of 12 checks failed exactly as predicted, then re-ran with the fix
+restored for a clean 12/12.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.

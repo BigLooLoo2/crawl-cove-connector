@@ -292,8 +292,8 @@ class CCC_Service {
 			);
 		}
 
-		$results       = array();
-		$touched_posts = array();
+		$results         = array();
+		$touched_targets = array();
 
 		foreach ( array_values( $changes ) as $i => $item ) {
 			$valid = self::validate_change( $item );
@@ -362,17 +362,9 @@ class CCC_Service {
 					} else {
 						$adapter->set_description( $post_id, $to );
 					}
-					$entry             = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
-					$step['change_id'] = $entry['id'];
-					// Only a REAL post id gets re-saved to rebuild Yoast's
-					// indexable — HOME_ID (0) and a negative term id are both
-					// sentinels, not rows wp_update_post() could touch (ID 0
-					// is core's INSERT signal, and a negative ID is nonsense
-					// to core entirely; the same class of bug the HOME_ID
-					// homepage work caught and fixed).
-					if ( $post_id > 0 ) {
-						$touched_posts[ $post_id ] = true;
-					}
+					$entry                       = CCC_Change_Log::record( $post_id, $field, $from, $to, $source );
+					$step['change_id']           = $entry['id'];
+					$touched_targets[ $post_id ] = true;
 				}
 				$applied[ $field ] = $step;
 			}
@@ -386,15 +378,69 @@ class CCC_Service {
 			);
 		}
 
-		// Yoast rebuilds its indexables on save_post, so re-save each touched
-		// post; without this the new meta can sit unused until the next manual
-		// edit. Filterable off for hosts that object to the modified-date bump.
-		if ( $touched_posts && apply_filters( 'ccc_touch_post_after_apply', true ) ) {
-			foreach ( array_keys( $touched_posts ) as $post_id ) {
-				wp_update_post( array( 'ID' => $post_id ) );
-			}
+		foreach ( array_keys( $touched_targets ) as $touched_id ) {
+			self::invalidate_caches_for( $touched_id );
 		}
 
 		return $results;
+	}
+
+	/**
+	 * After a real (non-dry-run) write, tell WordPress and any active
+	 * caching plugin that this target's rendered page is now stale.
+	 *
+	 * A real post id is re-saved via wp_update_post(), which both rebuilds
+	 * Yoast's indexable (it hooks save_post) and fires core's
+	 * clean_post_cache action — the action WP Super Cache's own
+	 * wp_cache_post_edit() hooks to purge that page's cached HTML, and the
+	 * same convention W3 Total Cache and similar plugins follow. Filterable
+	 * off for hosts that object to the modified-date bump.
+	 *
+	 * HOME_ID (0) and a negative term-id sentinel have no post row —
+	 * wp_update_post( [ 'ID' => 0 ] ) is core's INSERT signal, not a no-op,
+	 * so it must never run for either (the exact bug the homepage work
+	 * caught and fixed). Neither target's write fires clean_post_cache by
+	 * any other path, so a caching plugin never learns the homepage or a
+	 * taxonomy archive changed — verified against WP Super Cache's real
+	 * source, whose wp_cache_post_edit()/wp_cache_post_change() both bail
+	 * immediately on post_id === 0 and are never called for term edits at
+	 * all. A best-effort full-site purge covers that gap instead.
+	 *
+	 * @param int $post_id Post id, HOME_ID, or a negative term-id sentinel.
+	 */
+	public static function invalidate_caches_for( $post_id ) {
+		if ( $post_id > 0 ) {
+			if ( apply_filters( 'ccc_touch_post_after_apply', true ) ) {
+				wp_update_post( array( 'ID' => $post_id ) );
+			}
+			return;
+		}
+		if ( apply_filters( 'ccc_clear_full_cache_after_write', true ) ) {
+			self::clear_full_page_cache();
+		}
+	}
+
+	/**
+	 * Best-effort full-site page-cache purge for the common free caching
+	 * plugins, since HOME_ID/a term sentinel has no single post row a
+	 * per-page purge could target. Every branch is guarded so a site
+	 * without that particular plugin active does nothing extra. Always
+	 * fires a plugin-agnostic action too, for anything not listed here.
+	 */
+	private static function clear_full_page_cache() {
+		if ( function_exists( 'wp_cache_clear_cache' ) ) { // WP Super Cache.
+			wp_cache_clear_cache();
+		}
+		if ( function_exists( 'w3tc_flush_all' ) ) { // W3 Total Cache.
+			w3tc_flush_all();
+		}
+		if ( function_exists( 'rocket_clean_domain' ) ) { // WP Rocket.
+			rocket_clean_domain();
+		}
+		if ( function_exists( 'wpfc_clear_all_cache' ) ) { // WP Fastest Cache.
+			wpfc_clear_all_cache();
+		}
+		do_action( 'litespeed_purge_all' ); // LiteSpeed Cache's own documented purge-all hook.
+		do_action( 'ccc_after_uncached_write' );
 	}
 }

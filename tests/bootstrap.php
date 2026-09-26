@@ -14,6 +14,7 @@ function cc_reset_wp() {
 	$GLOBALS['cc_urls']    = array(); // url => post_id
 	$GLOBALS['cc_deny']    = array(); // post_ids current user may NOT edit
 	$GLOBALS['cc_saved']   = array(); // wp_update_post calls
+	$GLOBALS['cc_actions'] = array(); // do_action() calls (tag name only)
 	$GLOBALS['cc_home']    = 'https://example.com';
 	$GLOBALS['cc_aioseo']  = array(); // post_id => ['title' => ..., 'description' => ...]
 	$GLOBALS['cc_deny_manage_options'] = false;
@@ -103,6 +104,7 @@ function sanitize_text_field( $str ) {
 }
 
 function apply_filters( $tag, $value ) { return $value; }
+function do_action( $tag ) { $GLOBALS['cc_actions'][] = $tag; }
 
 /** Test helper: register a post with a resolvable URL. */
 function cc_add_post( $post_id, $url, $title = 'A post' ) {

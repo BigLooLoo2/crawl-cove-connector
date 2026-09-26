@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.8.0 =
+* Fix: an apply or revert to the homepage ("your latest posts" mode) or a taxonomy archive (category/tag/custom term) never told a page-caching plugin the page had changed — those targets write through an options/term-meta update with no post row for a caching plugin's usual save hook to fire against, so a pushed fix could sit behind a stale cached page for as long as the cache's lifetime. Now triggers a best-effort full-site purge for common caching plugins (WP Super Cache, W3 Total Cache, WP Rocket, WP Fastest Cache, LiteSpeed Cache) plus a plugin-agnostic action hook for anything else.
+* Fix: reverting a change to an ORDINARY post never re-saved it, so a revert didn't rebuild the SEO plugin's indexable or fire the cache-purge hook a normal apply already does — reverts now go through the exact same invalidation path applies do.
 
 = 0.7.0 =
 * SEOPress taxonomy term title/description support, extending 0.6.0's per-term target to a third adapter. Its term storage turned out to be the simplest of the three: plain term meta under the exact same key names as its post-level fields, no shared-array read-modify-write risk. AIOSEO stays unsupported, and not just unresearched — its own source confirms per-term SEO fields are a Pro-only feature, absent entirely from the free plugin this connector supports.

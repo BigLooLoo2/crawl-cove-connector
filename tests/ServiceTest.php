@@ -147,6 +147,21 @@ class ServiceTest extends TestCase {
 		$this->assertSame( 'bloo', $log[0]['source'] );
 	}
 
+	public function test_revert_resaves_the_post_too() {
+		// A revert is a real write, same as apply — it must rebuild the
+		// Yoast indexable and fire clean_post_cache (via wp_update_post)
+		// exactly like the original apply did, or a reverted post keeps
+		// serving a stale indexable/cached page.
+		$this->adapter->set_title( 7, 'Old title' );
+		$res = CCC_Service::apply(
+			array( array( 'post_id' => 7, 'title' => 'New title' ) ),
+			false, $this->adapter, 'bloo'
+		);
+		$GLOBALS['cc_saved'] = array();
+		CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $this->adapter );
+		$this->assertSame( array( 7 ), $GLOBALS['cc_saved'] );
+	}
+
 	public function test_apply_skips_unchanged_values() {
 		$this->adapter->set_title( 7, 'Same' );
 		$res = CCC_Service::apply(
@@ -216,6 +231,9 @@ class ServiceTest extends TestCase {
 		// option write itself; wp_update_post( ['ID' => 0] ) must never run —
 		// WordPress core treats ID 0 as "insert a new post", not "no-op".
 		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+		// No post row for a caching plugin's clean_post_cache to fire against —
+		// the best-effort full-cache-purge path runs instead.
+		$this->assertContains( 'ccc_after_uncached_write', $GLOBALS['cc_actions'] );
 	}
 
 	public function test_apply_rejects_homepage_changes_for_an_adapter_without_home_support() {
@@ -259,9 +277,13 @@ class ServiceTest extends TestCase {
 			array( array( 'post_id' => 0, 'title' => 'New home title' ) ),
 			false, $this->adapter, 'bloo'
 		);
-		$done = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $this->adapter );
+		$GLOBALS['cc_actions'] = array();
+		$done                  = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $this->adapter );
 		$this->assertTrue( $done );
 		$this->assertSame( 'Old home title', $this->adapter->get_title( 0 ) );
+		// A revert is a real write too — same cache-purge gap as apply() would
+		// have without CCC_Service::invalidate_caches_for().
+		$this->assertContains( 'ccc_after_uncached_write', $GLOBALS['cc_actions'] );
 	}
 
 	public function test_describe_homepage_target() {
@@ -337,6 +359,7 @@ class ServiceTest extends TestCase {
 		// => 0]) was for the homepage; a negative "ID" would be nonsense to
 		// core entirely).
 		$this->assertSame( array(), $GLOBALS['cc_saved'] );
+		$this->assertContains( 'ccc_after_uncached_write', $GLOBALS['cc_actions'] );
 	}
 
 	public function test_apply_rejects_term_changes_for_an_adapter_without_term_support() {
@@ -370,9 +393,11 @@ class ServiceTest extends TestCase {
 			array( array( 'post_id' => -5, 'title' => 'New term title' ) ),
 			false, $rankmath, 'bloo'
 		);
-		$done = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $rankmath );
+		$GLOBALS['cc_actions'] = array();
+		$done                  = CCC_Change_Log::revert( $res[0]['applied']['title']['change_id'], $rankmath );
 		$this->assertTrue( $done );
 		$this->assertSame( 'Old term title', $rankmath->get_title( -5 ) );
+		$this->assertContains( 'ccc_after_uncached_write', $GLOBALS['cc_actions'] );
 	}
 
 	public function test_revert_fails_when_the_term_no_longer_exists() {

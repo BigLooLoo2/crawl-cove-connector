@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.0 — 2026-09-26
+
+- Fix: a homepage ("your latest posts" mode) or taxonomy-archive apply/
+  revert never signalled a page-caching plugin that the page had changed.
+  Both targets write through `update_option()`/term meta directly — no
+  post row exists for `wp_update_post()` to re-save, so `clean_post_cache`
+  (the action a real post's apply already fires, and the one caching
+  plugins hook) never ran. Verified against WP Super Cache's real source
+  (`wp-cache-phase2.php`): `wp_cache_post_edit()`/`wp_cache_post_change()`
+  both bail immediately on `$post_id === 0` and are registered only on
+  `clean_post_cache`, never on any term-edit hook — so a WP Super Cache
+  site kept serving the old cached homepage/archive HTML indefinitely
+  after a desktop-app push. `CCC_Service::invalidate_caches_for()` now
+  runs a best-effort full-site purge for WP Super Cache, W3 Total Cache,
+  WP Rocket and WP Fastest Cache (via their own public functions, guarded
+  by `function_exists()`) plus LiteSpeed Cache's documented
+  `litespeed_purge_all` action, and always fires a new plugin-agnostic
+  `ccc_after_uncached_write` action for anything else.
+- Fix: `CCC_Change_Log::revert()` never called `wp_update_post()` at all,
+  for ANY target — not even an ordinary post. A reverted post's Yoast
+  indexable went stale and no caching plugin's `clean_post_cache` hook
+  fired, the exact gap `apply()` already closed for a fresh write. Revert
+  now runs through the same `CCC_Service::invalidate_caches_for()` path
+  apply() uses, for every target type.
+- New `tests/integration/caching-checks.sh`: a real WordPress + real Rank
+  Math harness with an mu-plugin probe that logs `clean_post_cache`
+  firings and WP Super Cache's own `wp_cache_clear_cache()` (confirmed
+  against its real source rather than guessed), plus LiteSpeed's
+  `litespeed_purge_all` and the new `ccc_after_uncached_write` action.
+  12/12 checks green with the fix; confirmed the harness actually catches
+  the bug by reverting the fix locally first — 10/12 failed as predicted
+  (only the pre-existing "apply on a real post" path passed).
+- 85 unit tests (+1), full gate green (phpcs, phpcompat, 4-adapter
+  integration matrix, Plugin Check) — see SECURITY-NOTES.md for the full
+  writeup.
+
 ## 0.7.0 — 2026-09-24
 
 - SEOPress taxonomy term title/description support, extending 0.6.0's

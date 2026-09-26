@@ -128,6 +128,27 @@ WooCommerce products/categories — connect as a Shop Manager or Administrator
 if you want those pushed too. This is WooCommerce's own capability model,
 not a plugin limitation.
 
+### Caching plugins
+
+Every applied or reverted change tells WordPress (and, in turn, most page
+caching plugins) that the affected page is stale:
+
+- **An ordinary post or page**: re-saved via `wp_update_post()`, which fires
+  core's `clean_post_cache` action — the hook WP Super Cache, W3 Total
+  Cache and similar plugins use to purge that page's cached HTML.
+- **The homepage (`post_id: 0`) or a taxonomy archive**: neither has a post
+  row for `clean_post_cache` to fire against, so instead this plugin runs a
+  best-effort full-site cache purge — calling WP Super Cache's, W3 Total
+  Cache's, WP Rocket's or WP Fastest Cache's own public purge function if
+  that plugin is active, and firing LiteSpeed Cache's documented
+  `litespeed_purge_all` action.
+
+For anything else, hook the plugin-agnostic `ccc_after_uncached_write`
+action (fires after every homepage/taxonomy write) or filter
+`ccc_clear_full_cache_after_write`/`ccc_touch_post_after_apply` (both
+default `true`; return `false` to opt out of the automatic purge/re-save
+entirely).
+
 ## Installation
 
 1. Install and activate the plugin on your WordPress site (requires WordPress 6.2+ and PHP 7.4+).

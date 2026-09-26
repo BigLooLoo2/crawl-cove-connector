@@ -13,7 +13,9 @@ tests/integration/.site/
 tests/integration/.site-check/
 tests/integration/.site-woo/
 tests/integration/.site-ms/
+tests/integration/.site-cache/
 tests/integration/.dist/
 tests/integration/.server.log
 tests/integration/.server-woo.log
 tests/integration/.server-ms.log
+tests/integration/.server-cache.log
