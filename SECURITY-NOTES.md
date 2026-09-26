@@ -160,6 +160,37 @@ just exercises the happy path: reverted the fix locally and re-ran it first
 — 10 of 12 checks failed exactly as predicted, then re-ran with the fix
 restored for a clean 12/12.
 
+## Addendum — 26 Sept 2026 (Gutenberg/block-editor concurrent-edit check — investigated, no bug)
+
+Tested a specific hypothesis the previous session's handoff flagged as
+worth checking: does having a post open in the block editor risk a stale
+sidebar value silently overwriting a CCC push? Real difference found
+between adapters first, via a live Gutenberg session (Playwright,
+`wp.data.select('core/editor').getCurrentPost().meta`): **Yoast SEO
+registers `_yoast_wpseo_title`/`_yoast_wpseo_metadesc` — the exact same
+postmeta keys CCC itself writes — as Gutenberg REST meta fields, visible
+in the editor's own state. Rank Math does not** (its SEO panel doesn't
+appear in `post.meta` at all, so this class of risk doesn't apply to it).
+
+That raised a real question for Yoast: if an editor tab loads the OLD
+title into its meta store, CCC pushes a NEW title via REST while that tab
+sits open, and the user then saves the post for an unrelated reason (e.g.
+fixing a typo in the body) — does Gutenberg's `savePost()` resend its
+stale copy of `meta` and clobber CCC's fresh write? **Tested against a
+real WordPress + real Yoast install, not assumed: no.** Editing post
+content (never touching the Yoast SEO panel) and calling
+`wp.data.dispatch('core/editor').savePost()` produced a PUT that changed
+`post_content` but left `_yoast_wpseo_title` in the database exactly as
+CCC had just set it — confirmed by reading the postmeta directly after
+the save completed, not just by reading network traffic. Gutenberg only
+includes an attribute (including the whole `meta` object) in its save
+diff when that attribute was explicitly dispatched via `editPost()` in
+that browser session; merely having loaded a value into the store isn't
+enough. The only real collision left is the ordinary case of two edits to
+the SAME field in the same window — no different from any two concurrent
+editors of one WordPress field, not a CCC-specific bug, and not pursued
+further. No code change needed.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.
