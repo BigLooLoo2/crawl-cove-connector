@@ -111,6 +111,23 @@ crawled URL — so this plugin never touches it.
 
 See [SECURITY-NOTES.md](SECURITY-NOTES.md) for the full security pass (capability matrix, fuzzing, findings).
 
+### WooCommerce products and categories
+
+Nothing in this plugin special-cases a post type or taxonomy, so WooCommerce
+products (`post_type: product`) and product categories (the `product_cat`
+taxonomy, via the negative-`post_id` term target above) already work exactly
+like any other post/page or category — verified against a real WooCommerce
+install, not assumed from its being "just" a custom post type.
+
+One real difference from ordinary posts: **WooCommerce only grants product
+edit capabilities (`edit_products`, `edit_product_terms`, etc.) to the Shop
+Manager and Administrator roles, not Editor** (confirmed against
+WooCommerce's own `WC_Install::create_roles()` source). An Editor-role user
+who can push fixes to ordinary posts/pages will get `ccc_forbidden` on
+WooCommerce products/categories — connect as a Shop Manager or Administrator
+if you want those pushed too. This is WooCommerce's own capability model,
+not a plugin limitation.
+
 ## Installation
 
 1. Install and activate the plugin on your WordPress site (requires WordPress 6.2+ and PHP 7.4+).
