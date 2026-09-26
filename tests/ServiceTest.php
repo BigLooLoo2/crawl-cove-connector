@@ -232,8 +232,14 @@ class ServiceTest extends TestCase {
 		// WordPress core treats ID 0 as "insert a new post", not "no-op".
 		$this->assertSame( array(), $GLOBALS['cc_saved'] );
 		// No post row for a caching plugin's clean_post_cache to fire against —
-		// the best-effort full-cache-purge path runs instead.
+		// the best-effort full-cache-purge path runs instead. WP Fastest Cache
+		// and LiteSpeed Cache both expose their purge-all as an ACTION, not a
+		// function (confirmed against WP Fastest Cache's real source) — pinned
+		// here so a future edit can't silently swap one back to a
+		// function_exists() guard that would always be false.
 		$this->assertContains( 'ccc_after_uncached_write', $GLOBALS['cc_actions'] );
+		$this->assertContains( 'wpfc_clear_all_cache', $GLOBALS['cc_actions'] );
+		$this->assertContains( 'litespeed_purge_all', $GLOBALS['cc_actions'] );
 	}
 
 	public function test_apply_rejects_homepage_changes_for_an_adapter_without_home_support() {

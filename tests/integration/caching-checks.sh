@@ -107,6 +107,10 @@ add_action( 'litespeed_purge_all', function () {
 	ccc_probe_log( 'litespeed_purge_all' );
 } );
 
+add_action( 'wpfc_clear_all_cache', function () {
+	ccc_probe_log( 'wpfc_clear_all_cache' );
+} );
+
 add_action( 'ccc_after_uncached_write', function () {
 	ccc_probe_log( 'ccc_after_uncached_write' );
 } );
@@ -197,6 +201,7 @@ req POST /apply "{\"changes\":[{\"post_id\":0,\"title\":\"Home Title v1\"}]}"
 CHANGE_ID_HOME="$(echo "$RESP_BODY" | jq -r '.[0].applied.title.change_id')"
 expect_contains "apply(home): WP Super Cache's wp_cache_clear_cache() called" "wp_cache_clear_cache"
 expect_contains "apply(home): LiteSpeed's litespeed_purge_all fired" "litespeed_purge_all"
+expect_contains "apply(home): WP Fastest Cache's wpfc_clear_all_cache fired" "wpfc_clear_all_cache"
 expect_contains "apply(home): plugin-agnostic ccc_after_uncached_write fired" "ccc_after_uncached_write"
 expect_absent "apply(home): clean_post_cache never fires for post_id 0 (would be core's INSERT signal)" "clean_post_cache:0"
 

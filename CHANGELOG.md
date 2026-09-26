@@ -13,11 +13,12 @@
   `clean_post_cache`, never on any term-edit hook — so a WP Super Cache
   site kept serving the old cached homepage/archive HTML indefinitely
   after a desktop-app push. `CCC_Service::invalidate_caches_for()` now
-  runs a best-effort full-site purge for WP Super Cache, W3 Total Cache,
-  WP Rocket and WP Fastest Cache (via their own public functions, guarded
-  by `function_exists()`) plus LiteSpeed Cache's documented
-  `litespeed_purge_all` action, and always fires a new plugin-agnostic
-  `ccc_after_uncached_write` action for anything else.
+  runs a best-effort full-site purge for WP Super Cache, W3 Total Cache and
+  WP Rocket (via their own public functions, guarded by `function_exists()`)
+  plus WP Fastest Cache's and LiteSpeed Cache's own documented
+  `wpfc_clear_all_cache`/`litespeed_purge_all` action hooks, and always
+  fires a new plugin-agnostic `ccc_after_uncached_write` action for
+  anything else.
 - Fix: `CCC_Change_Log::revert()` never called `wp_update_post()` at all,
   for ANY target — not even an ordinary post. A reverted post's Yoast
   indexable went stale and no caching plugin's `clean_post_cache` hook

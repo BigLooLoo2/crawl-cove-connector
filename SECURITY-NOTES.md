@@ -138,10 +138,18 @@ behavior.
    cached homepage or category/tag archive page after a desktop-app push,
    for as long as that page's cache lived. `CCC_Service::invalidate_caches_for()`
    now runs a best-effort full-site purge (WP Super Cache, W3 Total Cache,
-   WP Rocket, WP Fastest Cache via `function_exists()`-guarded calls to
-   their own public functions, plus LiteSpeed Cache's documented
-   `litespeed_purge_all` action) for these two target types, and always
-   fires a new `ccc_after_uncached_write` action for anything not listed.
+   WP Rocket via `function_exists()`-guarded calls to their own public
+   functions, plus WP Fastest Cache's and LiteSpeed Cache's own documented
+   action hooks — `wpfc_clear_all_cache`/`litespeed_purge_all`, neither of
+   which is a callable function despite the naming convention suggesting
+   otherwise; confirmed against WP Fastest Cache's real downloaded source,
+   which registers it with `add_action()`, not `function_exists()`-checkable
+   at all) for these two target types, and always fires a new
+   `ccc_after_uncached_write` action for anything not listed. Initially
+   wrote `wpfc_clear_all_cache` as a `function_exists()` guard by pattern-
+   matching the others without checking its real source first — caught and
+   fixed before commit by downloading WP Fastest Cache and grepping it,
+   the same discipline as the rest of this file.
 10. **Second real bug found investigating the first**: `CCC_Change_Log::
     revert()` never called `wp_update_post()` at all, for ANY target —
     including an ordinary post. A reverted post's Yoast indexable went

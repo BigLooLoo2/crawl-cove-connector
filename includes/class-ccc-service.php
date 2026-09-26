@@ -437,9 +437,12 @@ class CCC_Service {
 		if ( function_exists( 'rocket_clean_domain' ) ) { // WP Rocket.
 			rocket_clean_domain();
 		}
-		if ( function_exists( 'wpfc_clear_all_cache' ) ) { // WP Fastest Cache.
-			wpfc_clear_all_cache();
-		}
+		// WP Fastest Cache and LiteSpeed Cache both expose their full-purge as
+		// an ACTION, not a function — confirmed against WP Fastest Cache's
+		// real source (wpFastestCache.php: `add_action( 'wpfc_clear_all_cache',
+		// array( $this, 'deleteCache' ), 10, 1 )`), so function_exists() would
+		// always be false for either and silently never fire.
+		do_action( 'wpfc_clear_all_cache' );
 		do_action( 'litespeed_purge_all' ); // LiteSpeed Cache's own documented purge-all hook.
 		do_action( 'ccc_after_uncached_write' );
 	}

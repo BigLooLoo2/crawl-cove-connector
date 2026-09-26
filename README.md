@@ -139,9 +139,9 @@ caching plugins) that the affected page is stale:
 - **The homepage (`post_id: 0`) or a taxonomy archive**: neither has a post
   row for `clean_post_cache` to fire against, so instead this plugin runs a
   best-effort full-site cache purge — calling WP Super Cache's, W3 Total
-  Cache's, WP Rocket's or WP Fastest Cache's own public purge function if
-  that plugin is active, and firing LiteSpeed Cache's documented
-  `litespeed_purge_all` action.
+  Cache's or WP Rocket's own public purge function if that plugin is
+  active, and firing WP Fastest Cache's and LiteSpeed Cache's own
+  documented `wpfc_clear_all_cache`/`litespeed_purge_all` action hooks.
 
 For anything else, hook the plugin-agnostic `ccc_after_uncached_write`
 action (fires after every homepage/taxonomy write) or filter
