@@ -87,6 +87,36 @@ trusted too literally, not a vulnerability in this plugin's own code):
    first (`get_term_meta()` with no `$meta` arg) and writing them all back
    with only the intended field changed.
 
+## Addendum — 26 Sept 2026 (WooCommerce + Multisite capability verification)
+
+Two new standalone harnesses (`tests/integration/woocommerce-checks.sh`,
+`tests/integration/multisite-checks.sh`), same "prove it against a real
+install, don't trust the code read" discipline as the addenda above. No
+vulnerabilities found; one capability-model behavior worth recording here
+because it's exactly the kind of thing a site owner could mistake for a
+CCC bug (or a security hole in the other direction — an Editor who thinks
+they can't touch products, when actually they simply lack the capability
+core already withholds):
+
+7. **Not a CCC issue, confirmed on the merits**: WooCommerce grants
+   `edit_products`/`edit_product_terms` (and related capabilities) ONLY to
+   the Shop Manager and Administrator roles — verified against
+   `WC_Install::create_roles()` and `WC_Post_Types::register_taxonomies()`
+   source, not assumed. CCC's `edit_post`/`edit_term` capability checks defer
+   entirely to WordPress core's meta-capability system, so an Editor who can
+   push fixes to ordinary posts/pages correctly gets `ccc_forbidden` on a
+   WooCommerce product or product_cat term. This is WooCommerce's own
+   authorization model working as intended, not a gap in CCC. Documented in
+   README.md.
+8. **Multisite scoping confirmed, not assumed**: activating CCC + Rank Math
+   on one subsite of a network and hitting the network root's REST API
+   returns a genuine `rest_no_route` 404 (route doesn't exist there at all),
+   not a `ccc_forbidden`/`rest_forbidden` — confirming `register_rest_route()`
+   is correctly per-site (fires on each site's own `rest_api_init`) with no
+   network-wide leakage, and that a write via the subsite's REST endpoint
+   lands in that subsite's own postmeta table, never the network's shared
+   tables.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.
