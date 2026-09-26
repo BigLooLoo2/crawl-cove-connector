@@ -350,6 +350,19 @@ class ServiceTest extends TestCase {
 		$this->assertSame( 'ccc_no_term', $err->get_error_code() );
 	}
 
+	public function test_validate_rejects_a_term_from_a_non_public_taxonomy() {
+		// Real example: Polylang's own internal "language" taxonomy is
+		// publicly_queryable (so its rewrite rules work) but public=false.
+		// resolve_url() never hands out such a term (CCC_Term_Resolver
+		// filters on the same thing), so a caller passing one straight to
+		// /apply or /revert must be rejected too, not just silently allowed
+		// because the term itself genuinely exists.
+		cc_add_term( 5, 'language', 'French' );
+		cc_set_taxonomy_public( 'language', false );
+		$err = CCC_Service::validate_change( array( 'post_id' => -5, 'title' => 'X' ) );
+		$this->assertSame( 'ccc_no_term', $err->get_error_code() );
+	}
+
 	public function test_apply_writes_a_term_title_for_a_supporting_adapter() {
 		cc_add_term( 5, 'category', 'News' );
 		$rankmath = new CCC_Adapter( 'rankmath', 'rank_math_title', 'rank_math_description' );

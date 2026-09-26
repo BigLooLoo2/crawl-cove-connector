@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.8.1 — 2026-09-26
+
+- Security/correctness fix: `CCC_Term_Resolver::resolve_pretty_permalink()`
+  matched a URL against `$wp_rewrite`'s compiled rules and accepted ANY
+  resulting taxonomy-archive query (`is_tax`/`is_category`/`is_tag`), with
+  no filter on whether that taxonomy was actually public — unlike its
+  sibling `resolve_plain_query_vars()`, which only ever iterates
+  `get_taxonomies(['public' => true])`. Found and verified against a real
+  Polylang install (not guessed): Polylang registers its own internal
+  "language" taxonomy as `public => false` / `publicly_queryable => true`
+  (so its language-switcher rewrite rule for the `lang` query var still
+  works), and that rule matches a bare `/fr/` — exactly what a French
+  "your latest posts" homepage URL looks like under Polylang's default
+  directory URL mode. Before this fix, resolving `/fr/` silently returned
+  Polylang's own "French" language TERM instead of the homepage or
+  `ccc_unresolvable` — CCC would report a title/description fix as
+  successfully applied, write it into the SEO plugin's term meta for that
+  internal language term, and the real French homepage's rendered title
+  would never change: a silent no-op reported as a success. Fixed in two
+  places — `resolve_pretty_permalink()` (URL discovery) and
+  `CCC_Service::validate_change()` (a direct `{"post_id": -N}` apply/revert
+  call must be held to the same rule, not just discovery via URL) — both
+  now require `get_taxonomy($term->taxonomy)->public` before accepting a
+  term as a valid target. New `tests/integration/polylang-checks.sh`
+  (standalone, like woocommerce/multisite-checks.sh) pins the fix against
+  a real Polylang install with directory-mode URLs and proves no
+  regression on ordinary translated content or language-prefixed archives
+  of REAL (public) taxonomies. +1 unit test (86 total). Scope note: this
+  fixes the safety bug (never misresolve to internal plumbing); it does
+  not add real per-language homepage/archive targeting for Polylang —
+  Rank Math itself has no Polylang integration, so its homepage title stays
+  one shared value across every language regardless of CCC. A
+  non-default-language "your latest posts" homepage is `ccc_unresolvable`,
+  not mis-resolved.
+
 ## 0.8.0 — 2026-09-26
 
 - Fix: a homepage ("your latest posts" mode) or taxonomy-archive apply/

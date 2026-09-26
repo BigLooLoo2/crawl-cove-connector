@@ -223,6 +223,19 @@ class CCC_Service {
 				if ( ! $term || is_wp_error( $term ) ) {
 					return new WP_Error( 'ccc_no_term', __( 'No term with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
 				}
+				// resolve_url() never hands out a term whose taxonomy isn't
+				// public (CCC_Term_Resolver checks this too, see its
+				// docblock) — a caller passing a raw negative post_id
+				// straight to /apply or /revert must be held to the same
+				// rule, not just discovery via URL. Real example: Polylang's
+				// own "language" taxonomy is publicly_queryable (so its
+				// rewrite rules work) but public=false; without this check a
+				// direct { "post_id": -5 } would silently write an SEO
+				// title/description onto Polylang's internal language term.
+				$taxonomy = get_taxonomy( $term->taxonomy );
+				if ( ! $taxonomy || ! $taxonomy->public ) {
+					return new WP_Error( 'ccc_no_term', __( 'No term with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
+				}
 			} elseif ( ! get_post( $post_id ) ) {
 				return new WP_Error( 'ccc_no_post', __( 'No post with that id.', 'crawl-cove-connector' ), array( 'status' => 404 ) );
 			}

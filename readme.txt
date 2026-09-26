@@ -4,7 +4,7 @@ Tags: seo, yoast, rank math, seopress, aioseo
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,9 @@ Every write is capability-checked, validated, length-capped and logged with its 
 1. Tools → Crawl Cove: connection status, the detected SEO plugin, setup steps, and the change log with one-click revert.
 
 == Changelog ==
+
+= 0.8.1 =
+* Security/correctness fix: a taxonomy archive URL under a language-prefixed permalink (e.g. a multilingual plugin's `/fr/category/news/`, or in the worst case a bare `/fr/` itself) could resolve to the WRONG term — specifically, a rewrite rule belonging to an internal, non-public taxonomy that happens to share the same URL shape. Found and verified against a real Polylang install: its own internal "language" taxonomy (used for its language switcher, not real content) matched a French "your latest posts" homepage URL, silently writing an SEO fix to that internal term instead of the homepage — reported as a successful apply while the real page never changed. Both URL resolution and direct `post_id`-based apply/revert now require the matched taxonomy to be public, matching WordPress's own definition of "a real, browsable archive."
 
 = 0.8.0 =
 * Fix: an apply or revert to the homepage ("your latest posts" mode) or a taxonomy archive (category/tag/custom term) never told a page-caching plugin the page had changed — those targets write through an options/term-meta update with no post row for a caching plugin's usual save hook to fire against, so a pushed fix could sit behind a stale cached page for as long as the cache's lifetime. Now triggers a best-effort full-site purge for common caching plugins (WP Super Cache, W3 Total Cache, WP Rocket, WP Fastest Cache, LiteSpeed Cache) plus a plugin-agnostic action hook for anything else.

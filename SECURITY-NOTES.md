@@ -199,6 +199,68 @@ the SAME field in the same window — no different from any two concurrent
 editors of one WordPress field, not a CCC-specific bug, and not pursued
 further. No code change needed.
 
+## Addendum — 26 Sept 2026 (multilingual-plugin URL resolution — a real bug, now fixed, v0.8.1)
+
+Investigated Polylang (the largest free WordPress multilingual plugin,
+700,000+ installs) as an untested compatibility surface, following the same
+"prove it against a real install, don't trust a code read" discipline as the
+WooCommerce/multisite passes. Downloaded Polylang's real current-stable
+source from wordpress.org rather than guessing at its internals.
+
+11. **Real bug, now fixed**: `CCC_Term_Resolver::resolve_pretty_permalink()`
+    accepted ANY rewrite-rule match that resolved to a taxonomy-archive
+    query (`is_tax`/`is_category`/`is_tag`), with no check on whether that
+    taxonomy was actually `public` — unlike its own sibling method,
+    `resolve_plain_query_vars()`, which only ever iterates
+    `get_taxonomies(['public' => true])`. Confirmed against Polylang's real
+    source (`src/translated-post.php`): Polylang registers its own internal
+    "language" taxonomy (used for its language switcher) as
+    `public => false` / `publicly_queryable => true` / `query_var => 'lang'`
+    — publicly queryable so its own rewrite rule works, but explicitly not
+    public because it isn't real content. Under Polylang's default
+    directory URL mode (default language at the root, others under `/xx/`),
+    that rewrite rule matches a bare `/fr/` — exactly the shape of a French
+    "your latest posts" homepage URL. Verified live against a real
+    WordPress + real Polylang + real Rank Math install: resolving `/fr/`
+    returned Polylang's own "French" language TERM (a negative-sentinel
+    target CCC treats as fully editable) instead of the homepage or
+    `ccc_unresolvable`. Applying a title through it reported `ok: true` and
+    genuinely wrote into Rank Math's term meta for that internal term —
+    **the desktop app would tell a user their homepage fix succeeded, and
+    the real page would never change.** Silent-failure-reported-as-success
+    is the worst class of bug for a plugin whose whole premise is "crawl,
+    fix, push live, verify."
+12. **Same gap, second entry point**: `CCC_Service::validate_change()`
+    accepted any existing term id for a negative `post_id`, with no
+    publicness check either — so even after fixing URL resolution, a
+    caller passing `{"post_id": -5}` directly (bypassing `/resolve`
+    entirely) could still reach the same internal term. Both entry points
+    now require `get_taxonomy($term->taxonomy)->public` before accepting a
+    term as a valid target, closing the gap at both the discovery and the
+    write layer, not just one.
+
+Verified against a real WordPress + real Rank Math + real Polylang install,
+not unit stubs alone: `tests/integration/polylang-checks.sh` (new,
+standalone, like woocommerce/multisite-checks.sh) proves the fix directly
+(a French homepage URL and a direct term-id apply attempt both now fail
+cleanly) and proves no regression on the things that must keep working —
+ordinary translated posts stay genuinely isolated per language, and a real
+(public) category taxonomy's own language-prefixed archive URL
+(`/fr/category/news/`) still resolves correctly. Full 4-adapter matrix
+(`run.sh`) plus woocommerce/multisite/caching-checks.sh and plugin-check.sh
+all re-verified clean after the fix; +1 unit test (86 total).
+
+Deliberately out of scope: this fixes the safety bug (never misresolve to
+internal plumbing), not real per-language homepage/archive SEO targeting for
+multilingual sites. Rank Math itself has no Polylang integration at all
+(confirmed: only Yoast has a dedicated compat layer in Polylang's own
+source, wrapping its homepage title/description strings for Polylang's own
+translation system) — its homepage title stays one shared value across
+every language regardless of anything CCC does. A non-default-language
+"your latest posts" homepage is honestly `ccc_unresolvable` for now, not
+silently wrong. Real multilingual-aware homepage targeting would be a
+larger, separate feature — noted in BACKLOG.md, not rushed into this fix.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.

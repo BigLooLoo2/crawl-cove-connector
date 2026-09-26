@@ -139,8 +139,25 @@ class CCC_Term_Resolver {
 			if ( $term_query->is_tax || $term_query->is_category || $term_query->is_tag ) {
 				$term = $term_query->get_queried_object();
 				if ( $term instanceof WP_Term ) {
-					return (int) $term->term_id;
+					// Match resolve_plain_query_vars()'s own filter
+					// (get_taxonomies(['public' => true])) — a taxonomy
+					// registered publicly_queryable (so it gets a rewrite
+					// match) but NOT public is internal plumbing, not
+					// content a site owner would want an SEO title on.
+					// Real example: Polylang's own "language" taxonomy is
+					// public=false/publicly_queryable=true so its language
+					// switcher works, and its rewrite rule for the "lang"
+					// query var (e.g. "/fr/") was otherwise indistinguishable
+					// from a real taxonomy archive here — a French "your
+					// latest posts" homepage URL was resolving to Polylang's
+					// internal "French" language term instead of either the
+					// homepage or ccc_unresolvable.
+					$taxonomy = get_taxonomy( $term->taxonomy );
+					if ( $taxonomy && $taxonomy->public ) {
+						return (int) $term->term_id;
+					}
 				}
+				return 0;
 			}
 			return 0;
 		}

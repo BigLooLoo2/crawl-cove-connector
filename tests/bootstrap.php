@@ -23,6 +23,7 @@ function cc_reset_wp() {
 	$GLOBALS['cc_term_plain_urls']  = array(); // url => term_id (CCC_Term_Resolver::resolve_plain_query_vars() stub)
 	$GLOBALS['cc_term_meta']        = array(); // term_id => key => value
 	$GLOBALS['cc_deny_terms']       = array(); // term_ids current user may NOT edit
+	$GLOBALS['cc_taxonomy_public']  = array(); // taxonomy => bool (get_taxonomy() stub; default true)
 }
 cc_reset_wp();
 
@@ -143,6 +144,24 @@ function get_term( $term, $taxonomy = '' ) {
 function get_term_link( $term ) {
 	$term_id = is_object( $term ) ? $term->term_id : (int) $term;
 	return isset( $GLOBALS['cc_terms'][ $term_id ] ) ? $GLOBALS['cc_terms'][ $term_id ]['link'] : '';
+}
+
+/**
+ * Test helper: mark a taxonomy as non-public, e.g. Polylang's own internal
+ * "language" taxonomy — public by default, matching every real content
+ * taxonomy (category, post_tag, custom) a unit test registers via
+ * cc_add_term().
+ */
+function cc_set_taxonomy_public( $taxonomy, $public ) {
+	$GLOBALS['cc_taxonomy_public'][ $taxonomy ] = $public;
+}
+
+function get_taxonomy( $taxonomy ) {
+	$public = isset( $GLOBALS['cc_taxonomy_public'][ $taxonomy ] ) ? $GLOBALS['cc_taxonomy_public'][ $taxonomy ] : true;
+	return (object) array(
+		'name'   => $taxonomy,
+		'public' => $public,
+	);
 }
 
 function get_term_meta( $term_id, $key, $single = false ) {
