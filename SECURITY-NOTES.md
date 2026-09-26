@@ -168,5 +168,5 @@ restored for a clean 12/12.
   CSRF check by design (same model core itself uses for the REST API).
 - Rate limiting / brute-force protection on Application Password auth: this
   plugin doesn't implement its own; it relies on whatever the host/core
-  provides. Worth a line in `readme.txt` if it ever comes up in a
-  wordpress.org review.
+  provides. Documented in `readme.txt`'s FAQ (26 Sept 2026) rather than left
+  as an undocumented gap for a wordpress.org reviewer to ask about.

@@ -37,11 +37,11 @@ Not yet. The plugin writes the SEO title and meta description fields those plugi
 
 = Can it change my content? =
 
-No. It writes only the SEO title and meta description fields, only for changes you approved, and each touched post is re-saved so your SEO plugin picks the new values up immediately.
+No. It writes only the SEO title and meta description fields, only for changes you approved. Ordinary posts/pages are re-saved so your SEO plugin and any caching plugin pick up the new values immediately; the homepage and taxonomy archives use a best-effort cache purge instead, since neither has a post to re-save.
 
 = Is this safe on a live site? =
 
-Every write is capability-checked, validated, length-capped and logged with its previous value; reverting is one click. Authentication is core WordPress Application Passwords over HTTPS.
+Every write is capability-checked, validated, length-capped and logged with its previous value; reverting is one click. Authentication is core WordPress Application Passwords over HTTPS — this plugin relies on WordPress core and your host for login rate-limiting/brute-force protection rather than implementing its own; a login-throttling plugin is recommended if you don't already run one.
 
 == Screenshots ==
 
