@@ -261,6 +261,49 @@ every language regardless of anything CCC does. A non-default-language
 silently wrong. Real multilingual-aware homepage targeting would be a
 larger, separate feature — noted in BACKLOG.md, not rushed into this fix.
 
+## Addendum — 26 Sept 2026 (Yoast homepage title + Polylang string translation — investigated, no bug)
+
+Follow-up question raised by the addendum above: on a Yoast + Polylang site,
+does pushing a CCC homepage (`post_id: 0`) title/description write through
+`WPSEO_Options::save_option()` corrupt or silently overwrite a non-default
+language's already-translated homepage title? Polylang has a real,
+dedicated compat layer for exactly this (`src/integrations/wpseo/wpseo.php`
+registers `wpseo_titles`'s `title-home-wpseo`/`metadesc-home-wpseo` for its
+own string-translation system via `PLL_Translate_Option`), so this wasn't
+assumed safe just because the Rank Math case (no Polylang integration at
+all) is.
+
+Tested against a real WordPress + real Yoast + real Polylang install, not
+just a read of `PLL_Translate_Option`'s source: configured an English
+homepage title/description via Yoast directly, registered a French
+translation for both strings the same way Polylang's own Strings
+Translation admin screen would (via `PLL_MO::add_entry()`/`export_to_db()`
+against the French language term's `_pll_strings_translations` term meta),
+then pushed a NEW English title/description through CCC's real `/apply`
+REST route (admin user, `manage_options`, the actual capability gate for
+`HOME_ID`). Result: **no corruption.** The raw `wpseo_titles` option now
+holds the new English strings (correct — CCC's write). Polylang's own
+`pre_update_option_wpseo_titles`/`update_option_wpseo_titles` filters (the
+"step 1 filter out the update, step 2 reattach the old translation to the
+new original string" mechanism `PLL_Translate_Option::pre_update_option()`/
+`update_option()` implement) fired exactly as designed: the French term's
+`_pll_strings_translations` term meta still maps to the *same* French
+translation strings, now re-keyed to the new English original rather than
+lost. A site owner's French Yoast homepage title survives a CCC push to the
+English one untouched — safe by construction, not by luck: this is
+literally the scenario `PLL_Translate_Option` exists to handle (any
+plugin/admin action that updates the option's raw value), CCC isn't doing
+anything unusual to it. No code change needed.
+
+Scope note, unchanged from the addendum above: this confirms CCC pushing to
+the DEFAULT language's homepage is safe on a Yoast+Polylang site — it does
+not mean a non-default language's homepage is independently *reachable* by
+CCC. `resolve_url()` still can't discover `/fr/` as a target at all (fixed
+in v0.8.1 to fail cleanly as `ccc_unresolvable` rather than misresolve); a
+real French-homepage-specific fix would need Polylang-aware URL resolution
+that doesn't exist yet, tracked as an open BACKLOG.md item, not a safety
+concern.
+
 ## Not covered here (separate backlog items)
 
 - PHPCS / WordPress-Coding-Standards pass.
