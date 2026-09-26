@@ -12,12 +12,15 @@
         "wp-coding-standards/wpcs": "^3.1",
         "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
         "phpcsstandards/phpcsutils": "^1.2",
-        "phpcsstandards/phpcsextra": "^1.5"
+        "phpcsstandards/phpcsextra": "^1.5",
+        "phpcompatibility/php-compatibility": "^9.3",
+        "phpcompatibility/phpcompatibility-wp": "^2.1"
     },
     "scripts": {
         "test": "phpunit --colors=always",
         "lint": "find . -path ./vendor -prune -o -path './tests/integration/.site' -prune -o -path './tests/integration/.site-check' -prune -o -path './tests/integration/.dist' -prune -o -path './tests/integration/.cache' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l",
-        "phpcs": "phpcs"
+        "phpcs": "phpcs",
+        "phpcompat": "phpcs --standard=phpcompatibility.xml.dist ."
     },
     "config": {
         "allow-plugins": {

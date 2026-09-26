@@ -41,6 +41,7 @@ mkdir -p "$DIST"
 rsync -a \
   --exclude=vendor --exclude=tests --exclude=wordpress-org --exclude=.git \
   --exclude=composer.json --exclude=composer.lock --exclude=phpcs.xml.dist \
+  --exclude=phpcompatibility.xml.dist \
   --exclude=phpunit.xml --exclude=.phpunit.result.cache --exclude=.gitignore \
   --exclude=SECURITY-NOTES.md --exclude=README.md --exclude=CHANGELOG.md \
   "$PLUGIN_ROOT/" "$DIST/"
