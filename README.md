@@ -128,6 +128,32 @@ WooCommerce products/categories — connect as a Shop Manager or Administrator
 if you want those pushed too. This is WooCommerce's own capability model,
 not a plugin limitation.
 
+### Multilingual sites (Polylang, WPML, etc.)
+
+Ordinary translated content works with zero special handling — a post's
+translation is its own real post, with its own `post_id` and its own SEO
+postmeta, so it resolves, applies and reverts exactly like any other post.
+The same is true for a translated category/tag term.
+
+**The homepage and taxonomy archives are more limited.** A non-default
+language's "your latest posts" homepage (for example `/fr/` under
+Polylang's directory URL mode) currently resolves as `ccc_unresolvable` —
+it is correctly *not* mistaken for anything else, but it isn't yet a target
+this plugin can push a fix to either. (An earlier version silently
+misresolved it to the wrong internal target instead of failing cleanly —
+fixed in 0.8.1, see the changelog.) A static front page in another
+language is unaffected, since that's just an ordinary page with its own
+`post_id`.
+
+If you use Yoast SEO's homepage title/description together with Polylang,
+pushing a fix to the homepage target only ever affects your **default**
+language's title — verified against a real install that this does not
+corrupt or overwrite a non-default language's already-translated homepage
+title (Polylang's own string-translation system keeps it intact). Rank
+Math has no Polylang integration of its own, so its homepage title/
+description is one value shared across every language regardless of this
+plugin.
+
 ### Caching plugins
 
 Every applied or reverted change tells WordPress (and, in turn, most page
